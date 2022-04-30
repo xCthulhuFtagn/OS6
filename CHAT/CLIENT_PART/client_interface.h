@@ -38,7 +38,7 @@ typedef struct {
     cdc_entry cdc_entry_data;
     cdt_entry cdt_entry_data;
     char error_text[ERR_TEXT_LEN + 1];
-} message_t;
+} message_db_t;
 
 int server_starting(void);
 void server_ending(void);
