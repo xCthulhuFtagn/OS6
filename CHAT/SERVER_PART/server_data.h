@@ -2,7 +2,7 @@
 #define SERVER_DATA
 
 // сообщения 
-#define MAX_MESS_LEN 30
+#define MAX_MESS_LEN 256
 
 typedef struct {
 char message[MAX_MESS_LEN + 1];
