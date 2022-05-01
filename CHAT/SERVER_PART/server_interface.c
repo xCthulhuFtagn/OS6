@@ -13,7 +13,6 @@ int server_starting(void){
          printf("%d :- server_starting()\n", getpid());
     #endif
 
-    
 }
 
 void server_ending(void){
@@ -23,25 +22,16 @@ void server_ending(void){
     
 }
 
-int read_request_from_client(client_data_t* rec_ptr){
+int read_request_from_client(client_data_t* rec_ptr, int sockfd){
     int return_code = 0;
     int read_bytes;
     #if DEBUG_TRACE
         printf("%D :- read_request_from_client()\n", getpid());
     #endif
-
     
 }
 
-int start_resp_to_client(const client_data_t mess_to_send){
-    #if DEBUG_TRACE
-        printf("%d :- start_resp_to_client()\n", getpid());
-    #endif
-
-    
-}
-
-int send_resp_to_client(const client_data_t mess_to_send){
+int send_resp_to_client(const server_data_t* mess_to_send, int sockfd){
     int write_bytes;
     #if DEBUG_TRACE
         printf("%d : - send_resp_to_client()\n", getpid());
@@ -49,10 +39,13 @@ int send_resp_to_client(const client_data_t mess_to_send){
     
 }
 
-void end_resp_to_client(void){
+void end_resp_to_client(int sockfd){
     #if DEBUG_TRACE
         printf("%d :- end_resp_to_client()\n", getpid());
     #endif
 
+    if(close(sockfd) < 0){
+        perror("Could not close chat file");
+    }
     
 }
