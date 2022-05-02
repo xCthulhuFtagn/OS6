@@ -8,6 +8,10 @@
 #include <netdb.h>
 #include <dirent.h>
 #include <errno.h>
+#ifndef STRING
+#define STRING
+#include <string.h>
+#endif //STRING
 
 #include "server_interface.h"
 
@@ -18,142 +22,99 @@ void catch_signals(){
     server_running = 0;
 }
 
+/* structure of chat_sub file:
+    ChatName1 subsocket1.1 subsocket1.2 ... subsocket1.n \n
+    ...
+    ChatNamek subsocketk.1 subsocketk.2 ... subsocketk.n \n
+*/
+
 void routine(void* input){
-    int sockfd = *((int*)input), chatfd_write = -1;
+    int sockfd = *((int*)input);
     free(input);
     client_data_t *received = malloc(sizeof(client_data_t));
     server_data_t *resp = malloc(sizeof(server_data_t));
-    while(read(sockfd, received, sizeof(received)) > 0){
+    char connected_chat[MAX_CHAT_NAME_LEN + 1];
+    while(read_request_from_client(received, sockfd)){
         switch(received->request){
             case c_disconnect:
-                if(chatfd_write > 0) {
-                    if(close(chatfd_write) < 0) perror("Chatfd_write could not be closed");
-                }
                 end_resp_to_client(sockfd);
             case c_get_available_chats:
             {
-                DIR *dir_ptr;
-                if(!(dir_ptr = opendir("."))){//not NULL
-                    fprintf(stderr, "Could not read chats: opendir() failed\n");
-                    resp->responce = s_failure;
-                    strcpy(resp->responce, "Chats are unavailable");
-                    send_resp_to_client(resp, sockfd);
-                    break;
-                }
-                struct dirent *chat;
-                int err = 0;
                 resp->responce = s_success;
-                while(chat = readdir(dir_ptr)){
-                    strcpy(resp->message_text, chat->d_name, 32);
-                    send_resp_to_client(resp, sockfd);
+                for(list_of_chats* chat = lc; chat != NULL; chat = chat->next){
+                    strncpy(resp->message_text, chat->name_of_chat, MAX_CHAT_NAME_LEN);
+                    if(send_resp_to_client(resp, sockfd) < 0) perror("Responce failed");
                 }
-                closedir(dir_ptr);
                 resp->responce = s_resp_end;
-                send_resp_to_client(resp, sockfd);
                 break;
             }
             case c_create_chat:
-                if(strlen(received->message_text) > 32){
+            {
+                if(strlen(received->message_text) > MAX_CHAT_NAME_LEN){
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Chat's name is too big");
-                    send_resp_to_client(resp, sockfd);
                     break;
                 }
                 creat(received->message_text, S_IRWXG | S_IRWXO | S_IRWXU);
-                /*
-                //don't know how to check the error
-                if(EEXIST) {
+                if(errno == EEXIST) {
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Chat with such name already exists");
-                } else */resp->responce = s_success;
-
-                send_resp_to_client(resp, sockfd);
-                break;
-            case c_connect_chat:
-            {
-                DIR *dir_ptr;
-                if(!(dir_ptr = opendir("."))){//not NULL
-                    perror("Opendir() failed");
-                    resp->responce = s_failure;
-                    strcpy(resp->responce, "Chats are unavailable");
-                    send_resp_to_client(resp, sockfd);
-                    break;
-                }
-                struct dirent *chat;
-                int found = 0;
-                while(chat = readdir(dir_ptr)){
-                    if(strncmp(chat->d_name, received->message_text, 32)){
-                        found = 1;
-                        break;
+                } 
+                else if(!AddChat(lc, received->message_text)){
+                    perror("Could not add chat to list of chats");
+                    if(remove(received->message_text) < 0){
+                        perror("Could not remove the chat that could not be added to list");
                     }
+                    strcpy(resp->message_text, "Server error: cannot create chat");
                 }
-                if(closedir(dir_ptr) == 0){
-                    if(found){
-                        int chatfd;
-                        if((chatfd = open(received->message_text, O_RDONLY) > 0)){
-                            if(chatfd_write = open(received->message_text, O_WRONLY) < 0){
-                                close(chatfd);
-                                resp->responce = s_failure;
-                                strcpy(resp->responce, "Server error: cannot open chat");
-                                send_resp_to_client(resp, sockfd);
-                                break; //
-                            }
-                            int status;
-                            resp->responce = s_success;
-                            while((status = read(chatfd, resp->message_text, MAX_MESS_LEN + 1)) > 0){
-                                if(status < 0){
-                                    resp->responce = s_failure;
-                                    strcpy(resp->message_text, "Server error: could not read the whole chat");
-                                    break;
-                                }
-                                int extra = 256 - strlen(received->message_text);
-                                if(extra < 256) lseek(chatfd, -extra, SEEK_CUR);
-                                send_resp_to_client(resp, sockfd);
-                            }
-                            if(status == 0) resp->responce = s_resp_end;
-                            send_resp_to_client(resp, sockfd);
-                        }else{
-                            resp->responce = s_failure;
-                            strcpy(resp->responce, "Server error: cannot open chat");
-                            send_resp_to_client(resp, sockfd);
-                        }
-                    }else{
-                        resp->responce = s_failure;
-                        strcpy(resp->message_text, "Such chat does not exist");
-                        send_resp_to_client(resp, sockfd);
-                    }
-                }else{
-                    perror("Could not close directory");
-                }
+                else resp->responce = s_success;
                 break;
             }
-            case c_leave_chat:
-                if(chatfd_write > 0){
-                    close(chatfd_write);
-                    resp->responce = s_success;
-                }else{
+            case c_connect_chat:
+            {
+                list_of_chats* needed;
+                if(!(needed = findChat(lc, received->message_text))){
                     resp->responce = s_failure;
-                    strcpy(resp->message_text, "Cannot exit non-opened chat");
+                    strcpy(resp->message_text, "Server error: cannot create chat");
+                } 
+                else{
+                    //mb check if chat is already in the list in der Zukunft, heh
+                    addSub(needed, sockfd);
+                    strncmp(connected_chat, received->message_text, MAX_CHAT_NAME_LEN);
+                    resp->responce = s_success;
                 }
-                send_resp_to_client(resp, sockfd);
-                break;
+            }
+            case c_leave_chat:
+            {
+                list_of_chats* needed = findChat(lc, received->message_text);
+                if (needed != NULL) {
+                    delSub(needed->subs, sockfd);
+                    connected_chat[0] = '\0';
+                }
+                else{
+                    resp->responce = s_failure;
+                    strcpy(resp->message_text, "Server error: could not leave chat");
+                }
+            }
             case c_send_message:
-            //message division through \0
-                if(chatfd_write > 0){
-                    write(chatfd_write, received->message_text, strlen(received->message_text));
+            {
+                int chatfd = open(connected_chat, O_WRONLY);
+                if(chatfd > 0){
+                    write(chatfd, received->message_text, strlen(received->message_text));
                     resp->responce = s_success;
                 }else{
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Can't write this message: no chat is opened");
                 }
-                send_resp_to_client(resp, sockfd);
+                if(close(chatfd) < 0) perror("Could not close connected chat");
                 break;
+            }
             default:
                 fprintf(perror, "Wrong request from client : %d\n", received->request);
                 resp->responce = s_failure;
                 strcpy(resp->message_text, "WRONG REQUEST");
-                send_resp_to_client(resp, sockfd);
         }
+        if(send_resp_to_client(resp, sockfd) < 0) perror("Responce failed");
     }
     free(received);
     free(resp);
@@ -161,7 +122,7 @@ void routine(void* input){
 }
 
 int main(int argc, char* argv[]){
-    if(!server_starting()) exit(EXIT_FAILURE);
+    if(!server_starting(lc)) exit(EXIT_FAILURE);
     int sockfd;
     struct sockaddr_in address;
     pthread_t *client_threads;
@@ -196,6 +157,6 @@ int main(int argc, char* argv[]){
         client_threads = (pthread_t*)realloc((void*)client_threads, 3*times);
         ++times;
     }
-    server_ending();
+    server_ending(lc);
     exit(EXIT_SUCCESS);
 }

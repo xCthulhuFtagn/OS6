@@ -1,3 +1,6 @@
+#ifndef SERVINT
+#define SERVINT
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -6,12 +9,13 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <cd_data.h> //extra
-
-#define SERVER_PIPE "/tmp/server_pipe"
-#define CLIENT_PIPE "/tmp/client_%d_pipe"
+#include "list.h"
 
 #define MAX_MESS_LEN 256
+#define MAX_CHAT_NAME_LEN 32
+
+static list_of_chats* lc = NULL;
+
 typedef enum {
     c_get_available_chats,
     c_create_chat,
@@ -37,9 +41,11 @@ typedef struct {
     char message_text[MAX_MESS_LEN + 1];
 } server_data_t;
 
-int server_starting(void);
-void server_ending(void);
-int read_request_from_client(client_data_t* rec_ptr, int sockfd);
+int server_starting(list_of_chats* list);
+void server_ending(list_of_chats* list);
+int read_request_from_client(client_data_t* received, int sockfd);
 //int start_resp_to_client(const client_data_t mess_to_send, int sockfd);
-int send_resp_to_client(const server_data_t* mess_to_send, int sockfd);
+int send_resp_to_client(const server_data_t* resp, int sockfd);
 void end_resp_to_client(int sockfd);
+
+#endif

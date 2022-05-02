@@ -3,11 +3,6 @@
 
 // сообщения 
 #define MAX_MESS_LEN 256
-/*
-typedef struct {
-char message[MAX_MESS_LEN + 1];
-} message;
-*/
 
 // Функции инициализации и завершения
 int initialize(const int new_database);
