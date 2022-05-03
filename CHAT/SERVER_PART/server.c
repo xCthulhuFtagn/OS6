@@ -17,45 +17,42 @@
 
 static int server_running = 1;
 static void process_command(const client_data_t mess_command);
+pthread_mutex_t create_mutex, write_mutex, upd_list_mutex;
 
 void catch_signals(){
     server_running = 0;
 }
 
-/* structure of chat_sub file:
-    ChatName1 subsocket1.1 subsocket1.2 ... subsocket1.n \n
-    ...
-    ChatNamek subsocketk.1 subsocketk.2 ... subsocketk.n \n
-*/
-
 void routine(void* input){
-    int sockfd = *((int*)input);
+    int client_sockfd = *((int*)input);
     free(input);
     client_data_t *received = malloc(sizeof(client_data_t));
     server_data_t *resp = malloc(sizeof(server_data_t));
     char connected_chat[MAX_CHAT_NAME_LEN + 1];
-    while(read_request_from_client(received, sockfd)){
+    while(read_request_from_client(received, client_sockfd)){
         switch(received->request){
             case c_disconnect:
-                end_resp_to_client(sockfd);
+                end_resp_to_client(client_sockfd);
             case c_get_available_chats:
             {
                 resp->responce = s_success;
                 for(list_of_chats* chat = lc; chat != NULL; chat = chat->next){
                     strncpy(resp->message_text, chat->name_of_chat, MAX_CHAT_NAME_LEN);
-                    if(send_resp_to_client(resp, sockfd) < 0) perror("Responce failed");
+                    if(send_resp_to_client(resp, client_sockfd) < 0) perror("Responce failed");
                 }
                 resp->responce = s_resp_end;
                 break;
             }
             case c_create_chat:
             {
+                pthread_mutex_lock(&create_mutex);
                 if(strlen(received->message_text) > MAX_CHAT_NAME_LEN){
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Chat's name is too big");
                     break;
                 }
                 creat(received->message_text, S_IRWXG | S_IRWXO | S_IRWXU);
+                pthread_mutex_lock(&upd_list_mutex);
                 if(errno == EEXIST) {
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Chat with such name already exists");
@@ -68,10 +65,13 @@ void routine(void* input){
                     strcpy(resp->message_text, "Server error: cannot create chat");
                 }
                 else resp->responce = s_success;
+                pthread_mutex_unlock(&create_mutex);
+                pthread_mutex_unlock(&upd_list_mutex);
                 break;
             }
             case c_connect_chat:
             {
+                pthread_mutex_lock(&upd_list_mutex);
                 list_of_chats* needed;
                 if(!(needed = findChat(lc, received->message_text))){
                     resp->responce = s_failure;
@@ -79,34 +79,39 @@ void routine(void* input){
                 } 
                 else{
                     //mb check if chat is already in the list in der Zukunft, heh
-                    addSub(needed, sockfd);
+                    addSub(needed, client_sockfd);
                     strncmp(connected_chat, received->message_text, MAX_CHAT_NAME_LEN);
                     resp->responce = s_success;
                 }
+                pthread_mutex_unlock(&upd_list_mutex);
             }
             case c_leave_chat:
             {
+                pthread_mutex_lock(&upd_list_mutex);
                 list_of_chats* needed = findChat(lc, received->message_text);
                 if (needed != NULL) {
-                    delSub(needed->subs, sockfd);
+                    delSub(needed->subs, client_sockfd);
                     connected_chat[0] = '\0';
                 }
                 else{
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Server error: could not leave chat");
                 }
+                pthread_mutex_unlock(&upd_list_mutex);
             }
             case c_send_message:
             {
+                pthread_mutex_lock(&write_mutex);
                 int chatfd = open(connected_chat, O_WRONLY);
                 if(chatfd > 0){
                     write(chatfd, received->message_text, strlen(received->message_text));
                     resp->responce = s_success;
+                    if(close(chatfd) < 0) perror("Could not close connected chat");
                 }else{
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Can't write this message: no chat is opened");
                 }
-                if(close(chatfd) < 0) perror("Could not close connected chat");
+                pthread_mutex_unlock(&write_mutex);
                 break;
             }
             default:
@@ -114,7 +119,7 @@ void routine(void* input){
                 resp->responce = s_failure;
                 strcpy(resp->message_text, "WRONG REQUEST");
         }
-        if(send_resp_to_client(resp, sockfd) < 0) perror("Responce failed");
+        if(send_resp_to_client(resp, client_sockfd) < 0) perror("Responce failed");
     }
     free(received);
     free(resp);
@@ -123,7 +128,19 @@ void routine(void* input){
 
 int main(int argc, char* argv[]){
     if(!server_starting(lc)) exit(EXIT_FAILURE);
-    int sockfd;
+    int listen_sockfd;
+    if(pthread_mutex_init(&write_mutex, NULL) != 0){
+        perror("Could not initialize write_mutex");
+        exit(EXIT_FAILURE);
+    }
+    if(pthread_mutex_init(&create_mutex, NULL) != 0){
+        perror("Could not initialize create_mutex");
+        exit(EXIT_FAILURE);
+    }
+    if(pthread_mutex_init(&upd_list_mutex, NULL) != 0){
+        perror("Could not initialize create_mutex");
+        exit(EXIT_FAILURE);
+    }
     struct sockaddr_in address;
     pthread_t *client_threads;
     fd_set readfds;
@@ -135,27 +152,51 @@ int main(int argc, char* argv[]){
         fprintf(stderr, "cannot get info for server host: %s\n", host);
         exit(EXIT_FAILURE);
     }
-
-    sockfd = socket(AF_INET6, SOCK_STREAM, 0);
+    /* creates an UN-named socket inside the kernel and returns
+	 * an integer known as socket descriptor
+	 * This function takes domain/family as its first argument.
+	 * For Internet family of IPv4 addresses we use AF_INET
+	 */
+    listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    //adress.sin_port = htons(5000); //хз как там настраивается порт
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_ntoa(hostinfo->h_addrtype); // wtf
-    bind(sockfd, (struct sockaddr_in*) &address, sizeof(address));
+    address.sin_addr.s_addr = inet_ntoa(hostinfo->h_addrtype); // input of machine's adress
+    /* The call to the function "bind()" assigns the details specified
+	 * in the structure address to the socket created in the step above
+	 */
+    bind(listen_sockfd, (struct sockaddr_in*) &address, sizeof(address));
     client_threads = (pthread_t*)malloc(sizeof(pthread_t)*1024);
     int times = 1;
-    listen(sockfd, 3);
+    listen(listen_sockfd, 3);
     //FD_ZERO(&readfds);
-    //FD_SET(sockfd, &readfds);
+    //FD_SET(listen_sockfd, &readfds);
     while(server_running){
         struct sockaddr_in* client_addr;
         client_addr->sin_family = AF_INET;
-        if(bind(sockfd, (struct sockaddr*) &client_addr, len(client_addr)) == -1) perror("Bind");
+        if(bind(listen_sockfd, (struct sockaddr*) &client_addr, len(client_addr)) == -1) perror("Bind");
         int *new_client_desc = (int*) malloc(sizeof(int));
         for(int i = 0; i < 3; ++i){
-            *new_client_desc = accept(sockfd, client_addr, sizeof(client_addr));
+            /* In the call to accept(), the server is put to sleep and when for an incoming
+            * client request, the three way TCP handshake* is complete, the function accept()
+            * wakes up and returns the socket descriptor representing the client socket.
+            */
+            *new_client_desc = accept(listen_sockfd, client_addr, sizeof(client_addr));
             pthread_create(client_threads + i + 1024*(times-1), NULL, routine, (void*)new_client_desc);
         }
         client_threads = (pthread_t*)realloc((void*)client_threads, 3*times);
         ++times;
+    }
+    if(pthread_mutex_destroy(&write_mutex) != 0){
+        perror("Could not destroy write_mutex");
+        exit(EXIT_FAILURE);
+    }
+    if(pthread_mutex_destroy(&create_mutex) != 0){
+        perror("Could not destroy create_mutex");
+        exit(EXIT_FAILURE);
+    }
+    if(pthread_mutex_destroy(&upd_list_mutex) != 0){
+        perror("Could not destroy create_mutex");
+        exit(EXIT_FAILURE);
     }
     server_ending(lc);
     exit(EXIT_SUCCESS);
