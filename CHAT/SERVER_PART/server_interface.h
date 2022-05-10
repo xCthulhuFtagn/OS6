@@ -28,7 +28,8 @@ typedef enum {
 typedef enum {
     s_success = 0,
     s_failure,
-    s_resp_end
+    s_resp_end,
+    s_new_message
 } server_responce_e;
 
 typedef struct {

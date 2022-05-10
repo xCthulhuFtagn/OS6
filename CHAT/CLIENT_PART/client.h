@@ -55,8 +55,6 @@
 #include <QHash>
 #include <QHostAddress>
 
-#include "server.h"
-
 class PeerManager;
 
 class Client : public QObject
@@ -66,7 +64,7 @@ class Client : public QObject
 public:
     Client();
 
-    void sendMessage(const QString &message);
+    void sendMessage(const client_data_t* message);
     QString nickName() const;
     bool hasConnection(const QHostAddress &senderIp, int senderPort = -1) const;
 

@@ -1,64 +1,94 @@
-/****************************************************************************
-**
-** Copyright (C) 2016 The Qt Company Ltd.
-** Contact: https://www.qt.io/licensing/
-**
-** This file is part of the examples of the Qt Toolkit.
-**
-** $QT_BEGIN_LICENSE:BSD$
-** Commercial License Usage
-** Licensees holding valid commercial Qt licenses may use this file in
-** accordance with the commercial license agreement provided with the
-** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see https://www.qt.io/terms-conditions. For further
-** information use the contact form at https://www.qt.io/contact-us.
-**
-** BSD License Usage
-** Alternatively, you may use this file under the terms of the BSD license
-** as follows:
-**
-** "Redistribution and use in source and binary forms, with or without
-** modification, are permitted provided that the following conditions are
-** met:
-**   * Redistributions of source code must retain the above copyright
-**     notice, this list of conditions and the following disclaimer.
-**   * Redistributions in binary form must reproduce the above copyright
-**     notice, this list of conditions and the following disclaimer in
-**     the documentation and/or other materials provided with the
-**     distribution.
-**   * Neither the name of The Qt Company Ltd nor the names of its
-**     contributors may be used to endorse or promote products derived
-**     from this software without specific prior written permission.
-**
-**
-** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-** OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-** LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-** OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
-**
-** $QT_END_LICENSE$
-**
-****************************************************************************/
+#include <string.h>
+#include <malloc.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <netdb.h>
+#include <dirent.h>
+#include <pthread.h>
 
-#include <QApplication>
+#include "client_interface.h"
 
-#include "chatdialog.h"
+int chatfd;
+int sockfd;
+int finished = 1;
 
-#include <QtCore/QSettings>
+pthread_cond_t condFinished;
+pthread_mutex_t chat_mutex;
+
+void* read_routine(void* input){
+    server_data_t* resp;
+    while(read(sockfd, resp, sizeof(server_data_t)) > 0){
+        
+    }
+}
+void* write_routine(void* input){
+    client_data_t* message;
+    switch(message->request){
+    case c_connect_chat:
+        send_mess_to_server(message);
+        pthread_cond_wait(&condFinished, &chat_mutex);
+        pthread_mutex_lock(&chat_mutex);
+        chatfd = open("chat", O_WRONLY, O_CREAT | O_TRUNC);
+        
+        pthread_mutex_unlock(&chat_mutex);
+    case c_create_chat:
+
+    case c_disconnect:
+
+    case c_get_available_chats:
+
+    case c_leave_chat:
+
+    case c_send_message:
+
+    }
+}
+void* graphic_part(void* input){}
 
 int main(int argc, char *argv[])
 {
-    QApplication app(argc, argv);
+    char client_name[32];
+    if(!client_starting()) exit(EXIT_FAILURE);
+    struct sockaddr_in address;
+    pthread_t *client_threads;
+    fd_set readfds;
+    char host[256];
+    struct hostent *hostinfo;
+    if(pthread_cond_init(&condFinished, NULL) < 0){
+        perror("Could not initialize condition variable");
+        exit(EXIT_FAILURE);
+    }
+    gethostname(host, 255);
+    if(!(hostinfo = gethostbyname(host))){
+        fprintf(stderr, "cannot get info for server host: %s\n", host);
+        exit(EXIT_FAILURE);
+    }
+    client_data_t* sent = (client_data_t*)malloc(sizeof(client_data_t));
+    server_data_t* resp = (server_data_t*)malloc(sizeof(server_data_t));
+    struct sockaddr_in address;
+    pthread_t *client_threads;
+    //fd_set readfds;
 
-    ChatDialog dialog;
-    dialog.show();
-    return app.exec();
+    char host[256];
+    struct hostent *hostinfo;
+    gethostname(host, 255);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = hostinfo->h_addrtype; // input of machine's adress
+
+    bind(sockfd, (struct sockaddr*) &address, sizeof(address));
+
+    //put first data and connection here
+
+    pthread_t threads[3]; // 0 - read, 1 - write, 2 - graphics
+
+    pthread_create(threads, NULL, read_routine, NULL);
+    pthread_create(threads + 1, NULL, write_routine, NULL);
+    pthread_create(threads + 2, NULL, graphic_part, NULL);
+
+    pthread_cond_destroy(&condFinished);
+    free(resp);
+    free(sent);
 }

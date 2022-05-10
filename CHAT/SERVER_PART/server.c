@@ -8,6 +8,7 @@
 #include <netdb.h>
 #include <dirent.h>
 #include <errno.h>
+#include <sys/stat.h>
 #ifndef STRING
 #define STRING
 #include <string.h>
@@ -16,15 +17,23 @@
 #include "server_interface.h"
 
 static int server_running = 1;
-static void process_command(const client_data_t mess_command);
-pthread_mutex_t create_mutex, write_mutex, upd_list_mutex;
+pthread_mutex_t create_mutex;
+pthread_mutex_t write_mutex;
+pthread_mutex_t upd_list_mutex;
 
 void catch_signals(){
     server_running = 0;
 }
 
+struct init{
+    int desc;
+    char name[32];
+};
+
 void routine(void* input){
-    int client_sockfd = *((int*)input);
+    int client_sockfd = ((struct init*)input)->desc;
+    char client_name[32];
+    strcpy(client_name,((struct init*)input)->name);
     free(input);
     client_data_t *received = malloc(sizeof(client_data_t));
     server_data_t *resp = malloc(sizeof(server_data_t));
@@ -78,12 +87,16 @@ void routine(void* input){
                     strcpy(resp->message_text, "Server error: cannot create chat");
                 } 
                 else{
-                    //mb check if chat is already in the list in der Zukunft, heh
                     addSub(needed, client_sockfd);
                     strncmp(connected_chat, received->message_text, MAX_CHAT_NAME_LEN);
                     resp->responce = s_success;
                 }
                 pthread_mutex_unlock(&upd_list_mutex);
+                //sending it to client
+                struct stat st;
+                stat(received->message_text, &st);
+                write(client_sockfd, &st.st_size, sizeof(off_t));
+                //and so on
             }
             case c_leave_chat:
             {
@@ -103,15 +116,30 @@ void routine(void* input){
             {
                 pthread_mutex_lock(&write_mutex);
                 int chatfd = open(connected_chat, O_WRONLY);
+                pthread_mutex_lock(&upd_list_mutex);
                 if(chatfd > 0){
-                    write(chatfd, received->message_text, strlen(received->message_text));
-                    resp->responce = s_success;
+                    write(chatfd, client_name, 32);
+                    write(chatfd, received->message_text, MAX_MESS_LEN + 1);
                     if(close(chatfd) < 0) perror("Could not close connected chat");
+                    list_of_chats* tmp;
+                    if((tmp = findChat(lc, connected_chat)) != NULL){
+                        for(list_of_subscribers* i = tmp->subs; i != NULL; i= i->next){
+                            if(client_sockfd != i->socket){
+                                resp->responce = s_new_message;
+                                strcpy(resp->message_text, client_name);
+                                send_resp_to_client(resp, i->socket);
+                                strcpy(resp->message_text, received->message_text);
+                                send_resp_to_client(resp, i->socket);
+                            }
+                        } 
+                    }
+                    resp->responce = s_success;
                 }else{
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Can't write this message: no chat is opened");
                 }
                 pthread_mutex_unlock(&write_mutex);
+                pthread_mutex_unlock(&upd_list_mutex);
                 break;
             }
             default:
@@ -143,13 +171,16 @@ int main(int argc, char* argv[]){
     }
     struct sockaddr_in address;
     pthread_t *client_threads;
-    fd_set readfds;
+    //fd_set readfds;
 
     char host[256];
     struct hostent *hostinfo;
     gethostname(host, 255);
     if(!(hostinfo = gethostbyname(host))){
         fprintf(stderr, "cannot get info for server host: %s\n", host);
+        pthread_mutex_destroy(&write_mutex);
+        pthread_mutex_destroy(&create_mutex);
+        pthread_mutex_destroy(&upd_list_mutex);
         exit(EXIT_FAILURE);
     }
     /* creates an UN-named socket inside the kernel and returns
@@ -174,14 +205,19 @@ int main(int argc, char* argv[]){
         struct sockaddr_in* client_addr;
         client_addr->sin_family = AF_INET;
         if(bind(listen_sockfd, (struct sockaddr*) &client_addr, len(client_addr)) == -1) perror("Bind");
-        int *new_client_desc = (int*) malloc(sizeof(int));
+        struct init *client = (int*) malloc(sizeof(int));
         for(int i = 0; i < 3; ++i){
             /* In the call to accept(), the server is put to sleep and when for an incoming
             * client request, the three way TCP handshake* is complete, the function accept()
             * wakes up and returns the socket descriptor representing the client socket.
             */
-            *new_client_desc = accept(listen_sockfd, client_addr, sizeof(client_addr));
-            pthread_create(client_threads + i + 1024*(times-1), NULL, routine, (void*)new_client_desc);
+            client->desc = accept(listen_sockfd, client_addr, sizeof(client_addr));
+            if(read(client->desc,client->name, 32) < 0){
+                perror("Could not read client's name from socket");
+                server_data_t resp = {s_failure, "Failed to save user's name"};
+                send_resp_to_client(&resp, client->desc);
+            }
+            pthread_create(client_threads + i + 3*(times-1), NULL, routine, (void*)client);
         }
         client_threads = (pthread_t*)realloc((void*)client_threads, 3*times);
         ++times;

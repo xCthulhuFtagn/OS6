@@ -52,7 +52,6 @@
 
 #include "client.h"
 #include "connection.h"
-#include "peermanager.h"
 
 Client::Client()
 {
@@ -62,8 +61,6 @@ Client::Client()
 
     connect(peerManager, &PeerManager::newConnection,
             this, &Client::newConnection);
-    //connect(&server, &Server::newConnection,
-            //this, &Client::newConnection);
 }
 
 void Client::sendMessage(const QString &message)

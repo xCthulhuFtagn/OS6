@@ -39,14 +39,13 @@ void client_ending(void){
     (void)unlink(client_pipe_name);
 }
 
-int send_mess_to_server(message_db_t mess_to_send){
+int send_mess_to_server(client_data_t* mess_to_send){
     int write_bytes;
 
     #if DEBUG_TRACE
         printf("%d :- send_mess_to_server()\n", getpid());
     #endif
     if(server_fd == -1) return 0;
-    mess_to_send.client_pid = my_pid;
     write_bytes = write(server_fd, &mess_to_send, sizeof(mess_to_send));
     if(write_bytes != sizeof(mess_to_send)) return 0;
     return 1;
@@ -70,10 +69,8 @@ int start_resp_from_server(void){
     return 0;
 }
 
-int read_resp_from_server(message_db_t *rec_ptr){
+int read_resp_from_server(server_data_t *rec_ptr){
     int read_bytes;
-    int return_code = 0;
-
     #if DEBUG_TRACE
         printf("%d :- read_resp_from_server()\n", getpid());
     #endif
@@ -81,8 +78,8 @@ int read_resp_from_server(message_db_t *rec_ptr){
     if(!rec_ptr) return 0;
     if(client_fd == -1) return 0;
     read_bytes = read(client_fd, rec_ptr, sizeof(*rec_ptr));
-    if(read_bytes == sizeof(*rec_ptr)) return_code = 1;
-    return return_code;
+    if(read_bytes == sizeof(*rec_ptr)) return 1;
+    else return 0;
 }
 
 void end_resp_from_server(void){
