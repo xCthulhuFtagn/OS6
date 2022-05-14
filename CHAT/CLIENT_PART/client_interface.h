@@ -26,7 +26,8 @@ typedef enum {
 typedef enum {
     s_success = 0,
     s_failure,
-    s_resp_end
+    s_resp_end,
+    s_new_message
 } server_responce_e;
 
 typedef struct {
@@ -43,5 +44,6 @@ int client_starting(void);
 void client_ending(void);
 int send_mess_to_server(client_data_t* rec_ptr);
 int start_resp_from_server(void);
-int read_resp_from_server(server_responce_e * rec_ptr);
+int read_resp_from_server(server_data_t * rec_ptr);
 void end_resp_from_server(void);
+void newMessage(char*);

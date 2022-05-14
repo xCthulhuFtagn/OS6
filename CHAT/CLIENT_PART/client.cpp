@@ -1,144 +1,137 @@
-/****************************************************************************
-**
-** Copyright (C) 2016 The Qt Company Ltd.
-** Contact: https://www.qt.io/licensing/
-**
-** This file is part of the examples of the Qt Toolkit.
-**
-** $QT_BEGIN_LICENSE:BSD$
-** Commercial License Usage
-** Licensees holding valid commercial Qt licenses may use this file in
-** accordance with the commercial license agreement provided with the
-** Software or, alternatively, in accordance with the terms contained in
-** a written agreement between you and The Qt Company. For licensing terms
-** and conditions see https://www.qt.io/terms-conditions. For further
-** information use the contact form at https://www.qt.io/contact-us.
-**
-** BSD License Usage
-** Alternatively, you may use this file under the terms of the BSD license
-** as follows:
-**
-** "Redistribution and use in source and binary forms, with or without
-** modification, are permitted provided that the following conditions are
-** met:
-**   * Redistributions of source code must retain the above copyright
-**     notice, this list of conditions and the following disclaimer.
-**   * Redistributions in binary form must reproduce the above copyright
-**     notice, this list of conditions and the following disclaimer in
-**     the documentation and/or other materials provided with the
-**     distribution.
-**   * Neither the name of The Qt Company Ltd nor the names of its
-**     contributors may be used to endorse or promote products derived
-**     from this software without specific prior written permission.
-**
-**
-** THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-** "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-** LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-** A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-** OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-** SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-** LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-** OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
-**
-** $QT_END_LICENSE$
-**
-****************************************************************************/
+#include <string.h>
+#include <malloc.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+#include <netdb.h>
+#include <dirent.h>
+#include <pthread.h>
 
-#include <QtNetwork>
+#include "client_interface.h"
 
-#include "client.h"
-#include "connection.h"
+int chatfd;
+int sockfd;
 
-Client::Client()
-{
-    peerManager = new PeerManager(this);
-    //peerManager->setServerPort(server.serverPort());
-    peerManager->startBroadcasting();
+pthread_cond_t condFinished, condStarted;
+pthread_mutex_t chat_mutex;
+client_data_t* message;
+server_data_t* resp;
+//char chat[MAX_CHAT_NAME_LEN + 1];
 
-    connect(peerManager, &PeerManager::newConnection,
-            this, &Client::newConnection);
-}
-
-void Client::sendMessage(const QString &message)
-{
-    if (message.isEmpty())
-        return;
-
-    for (Connection *connection : qAsConst(peers))
-        connection->sendMessage(message);
-}
-
-QString Client::nickName() const
-{
-    return peerManager->userName() + '@' + QHostInfo::localHostName()
-           + ':'; //+ QString::number(server.serverPort());
-}
-
-bool Client::hasConnection(const QHostAddress &senderIp, int senderPort) const
-{
-    if (senderPort == -1)
-        return peers.contains(senderIp);
-
-    if (!peers.contains(senderIp))
-        return false;
-
-    const QList<Connection *> connections = peers.values(senderIp);
-    for (const Connection *connection : connections) {
-        if (connection->peerPort() == senderPort)
-            return true;
+void* read_routine(void* input){
+    while(read(sockfd, resp, sizeof(server_data_t)) > 0){
+        switch(message->request){
+        case c_connect_chat:
+        {
+            if(read_resp_from_server(resp) < 0){
+                perror("Failed to connect chat");
+                break;
+            }
+            pthread_mutex_lock(&chat_mutex);
+            //strcpy(chat, message->message_text);
+            if((chatfd = open("chat", O_WRONLY | O_TRUNC | O_CREAT | O_APPEND)) < 0){
+                pthread_mutex_unlock(&chat_mutex);
+                perror("Could not open chat to write");
+                break;
+            }
+            while(resp->responce == s_success || resp->responce == s_new_message){
+                if(resp->responce == s_new_message){
+                    newMessage(resp->message_text);
+                    continue;
+                }
+                write(chatfd, resp->message_text, strnlen(resp->message_text, 257));
+                read_resp_from_server(resp);
+            };
+            if(resp->responce == s_failure) fprintf(stderr, "%s", resp->message_text);
+            if(close(chatfd) < 0) perror("Could not close chat file");
+            pthread_mutex_unlock(&chat_mutex);
+            break;
+        }
+        case c_create_chat:
+            break;
+        case c_get_available_chats:
+            break;
+        case c_send_message:
+            break;
+        case c_disconnect:
+            break;
+        case c_leave_chat:
+            break;
+        }
     }
-
-    return false;
+    perror("The connection to the host has been ended");
+}
+void* write_routine(void* input){
+    /*switch(message->request){
+    case c_connect_chat:
+        send_mess_to_server(message);
+        pthread_cond_wait(&condFinished, &chat_mutex);
+        break;
+    case c_create_chat:
+        send_mess_to_server(message);
+        pthread_cond_wait(&condFinished, &chat_mutex);
+        break;
+    case c_disconnect:
+        send_mess_to_server(message);
+        pthread_cond_wait(&condFinished, &chat_mutex);
+        break;
+    case c_get_available_chats:
+        send_mess_to_server(message);
+        break;
+    case c_leave_chat:
+        send_mess_to_server(message);
+        break;
+    case c_send_message:
+        send_mess_to_server(message);
+        break;
+    }*/
+    send_mess_to_server(message);
+    pthread_cond_wait(&condFinished, &chat_mutex);
 }
 
-void Client::newConnection(Connection *connection)
+int main(int argc, char *argv[])
 {
-    connection->setGreetingMessage(peerManager->userName());
-
-    connect(connection, &Connection::errorOccurred, this, &Client::connectionError);
-    connect(connection, &Connection::disconnected, this, &Client::disconnected);
-    connect(connection, &Connection::readyForUse, this, &Client::readyForUse);
-}
-
-void Client::readyForUse()
-{
-    Connection *connection = qobject_cast<Connection *>(sender());
-    if (!connection || hasConnection(connection->peerAddress(),
-                                     connection->peerPort()))
-        return;
-
-    connect(connection,  &Connection::newMessage,
-            this, &Client::newMessage);
-
-    peers.insert(connection->peerAddress(), connection);
-    QString nick = connection->name();
-    if (!nick.isEmpty())
-        emit newParticipant(nick);
-}
-
-void Client::disconnected()
-{
-    if (Connection *connection = qobject_cast<Connection *>(sender()))
-        removeConnection(connection);
-}
-
-void Client::connectionError(QAbstractSocket::SocketError /* socketError */)
-{
-    if (Connection *connection = qobject_cast<Connection *>(sender()))
-        removeConnection(connection);
-}
-
-void Client::removeConnection(Connection *connection)
-{
-    if (peers.contains(connection->peerAddress())) {
-        peers.remove(connection->peerAddress());
-        QString nick = connection->name();
-        if (!nick.isEmpty())
-            emit participantLeft(nick);
+    char client_name[32];
+    if(!client_starting()) exit(EXIT_FAILURE);
+    struct sockaddr_in address;
+    pthread_t *client_threads;
+    fd_set readfds;
+    char host[256];
+    struct hostent *hostinfo;
+    if(pthread_cond_init(&condFinished, NULL) < 0 || (pthread_cond_init(&condStarted, NULL) < 0)){
+        perror("Could not initialize condition variable");
+        exit(EXIT_FAILURE);
     }
-    connection->deleteLater();
+    gethostname(host, 255);
+    if(!(hostinfo = gethostbyname(host))){
+        fprintf(stderr, "cannot get info for server host: %s\n", host);
+        exit(EXIT_FAILURE);
+    }
+    client_data_t* sent = (client_data_t*)malloc(sizeof(client_data_t));
+    server_data_t* resp = (server_data_t*)malloc(sizeof(server_data_t));
+    struct sockaddr_in address;
+    pthread_t *client_threads;
+    //fd_set readfds;
+
+    char host[256];
+    struct hostent *hostinfo;
+    gethostname(host, 255);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = hostinfo->h_addrtype; // input of machine's adress
+
+    bind(sockfd, (struct sockaddr*) &address, sizeof(address));
+
+    //put first data and connection here
+
+    pthread_t threads[3]; // 0 - read, 1 - write, 2 - graphics
+
+    pthread_create(threads, NULL, read_routine, NULL);
+    pthread_create(threads + 1, NULL, write_routine, NULL);
+
+    pthread_cond_destroy(&condStarted);
+    pthread_cond_destroy(&condFinished);
+    free(resp);
+    free(sent);
 }
