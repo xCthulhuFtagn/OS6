@@ -18,7 +18,7 @@
 
 static int server_running = 1;
 pthread_mutex_t create_mutex;
-pthread_mutex_t write_mutex;
+pthread_mutex_t chat_mutex;
 pthread_mutex_t upd_list_mutex;
 
 void catch_signals(){
@@ -97,6 +97,32 @@ void routine(void* input){
                 stat(received->message_text, &st);
                 write(client_sockfd, &st.st_size, sizeof(off_t));
                 //and so on
+                resp->responce = s_success;
+                pthread_mutex_lock(&chat_mutex);
+                int chatfd;
+                if((chatfd = open(received->message_text, O_RDONLY)) > 0){
+                    for(size_t i = 0; i < st.st_size; i += 256){
+                        if(read(chatfd, resp->message_text, 256) < 0){
+                            perror("Failed to read from chat");
+                            resp->responce = s_failure;
+                            strcpy(resp->message_text, "Server error: could not read chat");
+                            break;
+                        }
+                        if(send_resp_to_client(resp, client_sockfd) < 0){
+                            perror("Failed to transmit whole chat");
+                            resp->responce = s_failure;
+                            strcpy(resp->message_text, "Server error: failed to transmit whole chat");
+                            break;
+                        }
+                        resp->responce = s_resp_end;
+                    }
+                }
+                else {
+                    perror("Could not open chat on demand");
+                    resp->responce = s_failure;
+                    strcpy(resp->message_text, "Server error: could not open requested chat");
+                }
+                pthread_mutex_unlock(&chat_mutex);
             }
             case c_leave_chat:
             {
@@ -114,7 +140,7 @@ void routine(void* input){
             }
             case c_send_message:
             {
-                pthread_mutex_lock(&write_mutex);
+                pthread_mutex_lock(&chat_mutex);
                 int chatfd = open(connected_chat, O_WRONLY);
                 pthread_mutex_lock(&upd_list_mutex);
                 if(chatfd > 0){
@@ -138,7 +164,7 @@ void routine(void* input){
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Can't write this message: no chat is opened");
                 }
-                pthread_mutex_unlock(&write_mutex);
+                pthread_mutex_unlock(&chat_mutex);
                 pthread_mutex_unlock(&upd_list_mutex);
                 break;
             }
@@ -157,8 +183,8 @@ void routine(void* input){
 int main(int argc, char* argv[]){
     if(!server_starting(lc)) exit(EXIT_FAILURE);
     int listen_sockfd;
-    if(pthread_mutex_init(&write_mutex, NULL) != 0){
-        perror("Could not initialize write_mutex");
+    if(pthread_mutex_init(&chat_mutex, NULL) != 0){
+        perror("Could not initialize chat_mutex");
         exit(EXIT_FAILURE);
     }
     if(pthread_mutex_init(&create_mutex, NULL) != 0){
@@ -178,7 +204,7 @@ int main(int argc, char* argv[]){
     gethostname(host, 255);
     if(!(hostinfo = gethostbyname(host))){
         fprintf(stderr, "cannot get info for server host: %s\n", host);
-        pthread_mutex_destroy(&write_mutex);
+        pthread_mutex_destroy(&chat_mutex);
         pthread_mutex_destroy(&create_mutex);
         pthread_mutex_destroy(&upd_list_mutex);
         exit(EXIT_FAILURE);
@@ -222,8 +248,8 @@ int main(int argc, char* argv[]){
         client_threads = (pthread_t*)realloc((void*)client_threads, 3*times);
         ++times;
     }
-    if(pthread_mutex_destroy(&write_mutex) != 0){
-        perror("Could not destroy write_mutex");
+    if(pthread_mutex_destroy(&chat_mutex) != 0){
+        perror("Could not destroy chat_mutex");
         exit(EXIT_FAILURE);
     }
     if(pthread_mutex_destroy(&create_mutex) != 0){
