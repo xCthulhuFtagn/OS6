@@ -7,6 +7,7 @@
 #include <netdb.h>
 #include <dirent.h>
 #include <pthread.h>
+#include <queue>
 
 #include "client_interface.h"
 
@@ -14,13 +15,17 @@ int chatfd;
 int sockfd;
 
 pthread_cond_t condFinished, condStarted;
-pthread_mutex_t chat_mutex;
-client_data_t* message;
-server_data_t* resp;
-//char chat[MAX_CHAT_NAME_LEN + 1];
+pthread_mutex_t chat_mutex, read_mutex;
+std::queue<server_data_t> responces;
+std::queue<client_data_t> requests;
+char **available_chats;
+short cnt = 0, num_reallocs = 0;
 
 void* read_routine(void* input){
-    while(read(sockfd, resp, sizeof(server_data_t)) > 0){
+    server_data_t *resp;
+    while(recv(sockfd, resp, sizeof(server_data_t)) > 0){
+        responces.push(resp);
+        /*
         switch(message->request){
         case c_connect_chat:
         {
@@ -43,22 +48,38 @@ void* read_routine(void* input){
                 write(chatfd, resp->message_text, strnlen(resp->message_text, 257));
                 read_resp_from_server(resp);
             };
-            if(resp->responce == s_failure) fprintf(stderr, "%s", resp->message_text);
             if(close(chatfd) < 0) perror("Could not close chat file");
             pthread_mutex_unlock(&chat_mutex);
             break;
         }
         case c_create_chat:
+            if(resp->responce == s_failure) fprintf(stderr, "%s", resp->message_text);
             break;
         case c_get_available_chats:
+            while(resp->responce = s_success || resp->responce = s_new_message){
+                if(resp->responce == s_new_message){
+                    newMessage(resp->message_text);
+                    continue;
+                }
+                cnt = (cnt + 1) % 3;
+                if(cnt == 0) {
+                    available_chats = realloc(available_chats, sizeof(available_chats) + 3 * sizeof(char*));
+                    ++num_reallocs;
+                    for (auto i = 0; i < 3; ++i) available_chats[num_reallocs * 3 + i] = malloc(MAX_CHAT_NAME_LEN);
+                }
+                strcpy(available_chats[num_reallocs * 3 + cnt], resp->message_text);
+            }
             break;
-        case c_send_message:
-            break;
-        case c_disconnect:
-            break;
+        // case c_send_message:
+        //     break;
+        // case c_disconnect:
+        //     break;
         case c_leave_chat:
             break;
         }
+        if(resp->responce == s_failure) fprintf(stderr, "%s", resp->message_text);
+        */
+
     }
     perror("The connection to the host has been ended");
 }
@@ -86,13 +107,18 @@ void* write_routine(void* input){
         send_mess_to_server(message);
         break;
     }*/
-    send_mess_to_server(message);
-    pthread_cond_wait(&condFinished, &chat_mutex);
+    while(true){
+        if(!requests.empty()){
+            send_mess_to_server(requests.pop());
+        }
+    }
 }
 
 int main(int argc, char *argv[])
 {
     char client_name[32];
+    available_chats = malloc(3 * (char *));
+    for (auto i = 0; i < 3; ++i) available_chats[i] = malloc(MAX_CHAT_NAME_LEN);
     if(!client_starting()) exit(EXIT_FAILURE);
     struct sockaddr_in address;
     pthread_t *client_threads;

@@ -1,3 +1,6 @@
+#ifndef INTERFACE
+#define INTERFACE
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -47,3 +50,5 @@ int start_resp_from_server(void);
 int read_resp_from_server(server_data_t * rec_ptr);
 void end_resp_from_server(void);
 void newMessage(char*);
+
+#endif//INTERFACE

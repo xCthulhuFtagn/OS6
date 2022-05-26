@@ -83,14 +83,11 @@ void routine(void* input){
                 pthread_mutex_lock(&upd_list_mutex);
                 list_of_chats* needed;
                 if(!(needed = findChat(lc, received->message_text))){
-                    resp->responce = s_failure;
-                    strcpy(resp->message_text, "Server error: cannot create chat");
+                    lc = addChat(lc, needed);
                 } 
-                else{
-                    addSub(needed, client_sockfd);
-                    strncmp(connected_chat, received->message_text, MAX_CHAT_NAME_LEN);
-                    resp->responce = s_success;
-                }
+                addSub(needed, client_sockfd);
+                strncmp(connected_chat, received->message_text, MAX_CHAT_NAME_LEN);
+                resp->responce = s_success;
                 pthread_mutex_unlock(&upd_list_mutex);
                 //sending it to client
                 struct stat st;
@@ -131,6 +128,7 @@ void routine(void* input){
                 if (needed != NULL) {
                     delSub(needed->subs, client_sockfd);
                     connected_chat[0] = '\0';
+                    resp->responce = s_success;
                 }
                 else{
                     resp->responce = s_failure;
