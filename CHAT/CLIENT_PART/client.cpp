@@ -136,18 +136,21 @@ int main(int argc, char *argv[])
     }
     client_data_t* sent = (client_data_t*)malloc(sizeof(client_data_t));
     server_data_t* resp = (server_data_t*)malloc(sizeof(server_data_t));
-    struct sockaddr_in address;
     pthread_t *client_threads;
     //fd_set readfds;
 
     char host[256];
     struct hostent *hostinfo;
     gethostname(host, 255);
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    address.sin_port = htons(88005553535);
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = hostinfo->h_addrtype; // input of machine's adress
 
-    bind(sockfd, (struct sockaddr*) &address, sizeof(address));
+    if (connect(sockfd, (struct sockaddr*)&address, sizeof(struct sockaddr)) != -1) {
+        perror("Connect");
+        exit(EXIT_FAILURE);
+    }
 
     //put first data and connection here
 

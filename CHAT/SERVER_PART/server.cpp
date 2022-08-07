@@ -1,20 +1,31 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/epoll.h>  /* "Главный" по прослушке */
 #include <sys/types.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <net/if.h>
 #include <pthread.h>
 #include <netdb.h>
 #include <dirent.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <semaphore.h>
 #ifndef STRING
 #define STRING
 #include <string.h>
 #endif //STRING
 
 #include "server_interface.h"
+
+#include <vector>
+#include <thread>
+#include <future>
+#include <tuple>
+#include <chrono>
+#include <atomic>
+#include <unordered_set>
 
 static int server_running = 1;
 pthread_mutex_t create_mutex;
@@ -30,13 +41,9 @@ struct init{
     char name[32];
 };
 
-void routine(void* input){
-    int client_sockfd = ((struct init*)input)->desc;
-    char client_name[32];
-    strcpy(client_name,((struct init*)input)->name);
-    free(input);
-    client_data_t *received = malloc(sizeof(client_data_t));
-    server_data_t *resp = malloc(sizeof(server_data_t));
+void routine(int client_sockfd){
+    client_data_t *received = new client_data_t;
+    server_data_t *resp = new server_data_t;
     char connected_chat[MAX_CHAT_NAME_LEN + 1];
     while(read_request_from_client(received, client_sockfd)){
         switch(received->request){
@@ -167,7 +174,7 @@ void routine(void* input){
                 break;
             }
             default:
-                fprintf(perror, "Wrong request from client : %d\n", received->request);
+                fprintf(stderr, "Wrong request from client : %d\n", received->request);
                 resp->responce = s_failure;
                 strcpy(resp->message_text, "WRONG REQUEST");
         }
@@ -178,9 +185,37 @@ void routine(void* input){
     return;
 }
 
+void accept_connections(int listen_socket, int epollfd, std::vector<epoll_event>& events, std::mutex& mtx) {
+    struct epoll_event ev;
+    struct sockaddr_in client_address;
+    socklen_t address_length = sizeof(sockaddr_in);
+    int connection_socket;
+    while ((connection_socket = accept4(listen_socket, (struct sockaddr*) &client_address, &address_length, SOCK_NONBLOCK)) != -1) {
+        if (connection_socket == -1) {
+            perror("New connection");
+            return;
+        }
+        ev.events = EPOLLIN | EPOLLET;
+        ev.data.fd = connection_socket;
+        if (epoll_ctl(epollfd, EPOLL_CTL_ADD, connection_socket, &ev) == -1) {
+            perror("Setting in poll new connection");
+            return;
+        }
+        mtx.lock();
+        events.push_back(ev);
+        mtx.unlock();
+    }
+    if (!(errno & (EAGAIN | EWOULDBLOCK))) {
+        perror("Accept failure");
+        return;
+    }
+}
+
 int main(int argc, char* argv[]){
+    using namespace std::chrono_literals;
+    struct sockaddr_in server_address;
     if(!server_starting(lc)) exit(EXIT_FAILURE);
-    int listen_sockfd;
+    int listen_socket;
     if(pthread_mutex_init(&chat_mutex, NULL) != 0){
         perror("Could not initialize chat_mutex");
         exit(EXIT_FAILURE);
@@ -212,40 +247,70 @@ int main(int argc, char* argv[]){
 	 * This function takes domain/family as its first argument.
 	 * For Internet family of IPv4 addresses we use AF_INET
 	 */
-    listen_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    //adress.sin_port = htons(5000); //хз как там настраивается порт
+    listen_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    address.sin_port = htons(5000); // TO DO: CHANGE TO CONSTANT
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_ntoa(hostinfo->h_addrtype); // input of machine's adress
+    address.sin_addr.s_addr = in_addr_t { (uint)hostinfo->h_addrtype }; // input of machine's adress (CHANGE TO CONSTANT)
     /* The call to the function "bind()" assigns the details specified
 	 * in the structure address to the socket created in the step above
 	 */
-    bind(listen_sockfd, (struct sockaddr_in*) &address, sizeof(address));
-    client_threads = (pthread_t*)malloc(sizeof(pthread_t)*1024);
-    int times = 1;
-    listen(listen_sockfd, 3);
-    //FD_ZERO(&readfds);
-    //FD_SET(listen_sockfd, &readfds);
-    while(server_running){
-        struct sockaddr_in* client_addr;
-        client_addr->sin_family = AF_INET;
-        if(bind(listen_sockfd, (struct sockaddr*) &client_addr, len(client_addr)) == -1) perror("Bind");
-        struct init *client = (int*) malloc(sizeof(int));
-        for(int i = 0; i < 3; ++i){
-            /* In the call to accept(), the server is put to sleep and when for an incoming
-            * client request, the three way TCP handshake* is complete, the function accept()
-            * wakes up and returns the socket descriptor representing the client socket.
-            */
-            client->desc = accept(listen_sockfd, client_addr, sizeof(client_addr));
-            if(read(client->desc,client->name, 32) < 0){
-                perror("Could not read client's name from socket");
-                server_data_t resp = {s_failure, "Failed to save user's name"};
-                send_resp_to_client(&resp, client->desc);
-            }
-            pthread_create(client_threads + i + 3*(times-1), NULL, routine, (void*)client);
-        }
-        client_threads = (pthread_t*)realloc((void*)client_threads, 3*times);
-        ++times;
+    if (bind(listen_socket, (struct sockaddr*)& server_address, sizeof(server_address)) == -1) {
+        perror("Bind error");
+        close(listen_socket);
+        return EXIT_FAILURE;
     }
+
+    if (listen(listen_socket, 1000) == -1) {
+        perror("Listen error");
+        shutdown(listen_socket, SHUT_RDWR);
+        return EXIT_FAILURE;
+    }
+
+    struct epoll_event ev;
+    std::vector<struct epoll_event> events(std::vector<epoll_event>(1));
+    int epollfd;
+
+    epollfd = epoll_create1(0);
+    if (epollfd == -1) {
+        perror("Epoll create");
+        exit(EXIT_FAILURE);
+    }
+
+    ev.events = EPOLLIN | EPOLLET;
+    ev.data.fd = listen_socket;
+    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, listen_socket, &ev) == -1) {
+        perror("Setting in poll listen socket");
+        exit(EXIT_FAILURE);
+    }
+
+    int num = 0, timeout = -1;
+    std::mutex mtx;
+    for (mtx.lock(); (num = epoll_wait(epollfd, events.data(), events.size(), timeout)) != -1; mtx.lock()) {
+        mtx.unlock();
+        timeout = -1;
+        for (int i = 0; i < num; ++i) {
+            if (events[i].data.fd == listen_socket) {
+                std::async(
+                    std::launch::async,
+                    accept_connections,
+                    listen_socket,
+                    epollfd,
+                    std::ref(events),
+                    std::ref(mtx)
+                );
+                timeout = 100;
+            } else {
+                mtx.lock();
+                std::async(
+                    std::launch::async,
+                    routine,
+                    events[i].data.fd
+                );
+                mtx.unlock();
+            }
+        }
+    }
+    perror("Server died and sayed");
     if(pthread_mutex_destroy(&chat_mutex) != 0){
         perror("Could not destroy chat_mutex");
         exit(EXIT_FAILURE);
@@ -258,6 +323,6 @@ int main(int argc, char* argv[]){
         perror("Could not destroy create_mutex");
         exit(EXIT_FAILURE);
     }
-    server_ending(lc);
+    // server_ending(lc);
     exit(EXIT_SUCCESS);
 }

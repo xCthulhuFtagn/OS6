@@ -55,7 +55,7 @@ int send_resp_to_client(const server_data_t* resp, int sockfd){
     #if DEBUG_TRACE
         printf("%d : - send_resp_to_client()\n", getpid());
     #endif
-    return write(sockfd, (void*)resp, sizeof(server_data_t));
+    return send(sockfd, (void*)resp, sizeof(server_data_t), 0);
 }
 
 void end_resp_to_client(int sockfd){
