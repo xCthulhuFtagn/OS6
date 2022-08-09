@@ -1,5 +1,4 @@
-#ifndef SERVINT
-#define SERVINT
+#pragma once
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -9,15 +8,18 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "list.h"
+#include <unordered_set>
+#include <unordered_map>
+#include <string>
 
 #define MAX_MESS_LEN 256
 #define MAX_CHAT_NAME_LEN 32
+#define MAX_NAME_LEN 32
 
-static list_of_chats* lc = NULL;
+std::unordered_map<std::string, std::unordered_set<int>> chats;
 
 typedef enum {
-    c_get_available_chats,
+    c_get_available_chats = 0,
     c_create_chat,
     c_connect_chat,
     c_send_message,
@@ -42,11 +44,8 @@ typedef struct {
     char message_text[MAX_MESS_LEN + 1];
 } server_data_t;
 
-int server_starting(list_of_chats* list);
-void server_ending(list_of_chats* list);
+int server_starting();
+void server_ending();
 int read_request_from_client(client_data_t* received, int sockfd);
-//int start_resp_to_client(const client_data_t mess_to_send, int sockfd);
 int send_resp_to_client(const server_data_t* resp, int sockfd);
 void end_resp_to_client(int sockfd);
-
-#endif

@@ -3,34 +3,34 @@
 #include <sys/socket.h>
 #include <sys/epoll.h>  /* "Главный" по прослушке */
 #include <sys/types.h>
+
+// inet bullshit
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <pthread.h>
-#include <netdb.h>
-#include <dirent.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <semaphore.h>
-#ifndef STRING
-#define STRING
-#include <string.h>
-#endif //STRING
+
+#include <netdb.h> //for gethostname
+#include <dirent.h> //work with file system
+#include <errno.h> //error codes and so on
+#include <sys/stat.h> // additional file functions & info 
+// #include <semaphore.h>
+#include <string.h> //working with old style strings
 
 #include "server_interface.h"
 
 #include <vector>
 #include <thread>
 #include <future>
-#include <tuple>
+// #include <tuple>
 #include <chrono>
-#include <atomic>
+// #include <atomic>
 #include <unordered_set>
 
 static int server_running = 1;
-pthread_mutex_t create_mutex;
-pthread_mutex_t chat_mutex;
-pthread_mutex_t upd_list_mutex;
+std::mutex create_mutex;
+std::mutex chat_mutex;
+std::mutex chats_subs_mutex;
 
 void catch_signals(){
     server_running = 0;
@@ -44,16 +44,35 @@ struct init{
 void routine(int client_sockfd){
     client_data_t *received = new client_data_t;
     server_data_t *resp = new server_data_t;
-    char connected_chat[MAX_CHAT_NAME_LEN + 1];
-    while(read_request_from_client(received, client_sockfd)){
+    std::string connected_chat, user_name;
+    //first of all, we need to read clients name
+    resp->responce = s_failure;
+    while(resp->responce != s_success){
+        if(read_request_from_client(received, client_sockfd) > 0){
+            if(strlen(received->message_text) > MAX_NAME_LEN){
+                resp->responce = s_failure;
+                strcpy(resp->message_text, "Name too big");
+            }
+            else{
+                resp->responce = s_success;
+            }
+            send_resp_to_client(resp, client_sockfd);
+        }
+        perror("Could not read client's name");
+    }
+    //after successfull reading of the name, we can work 
+    bool disconnected = false;
+    while(!disconnected && read_request_from_client(received, client_sockfd) > 0){ // data processing worker
         switch(received->request){
             case c_disconnect:
                 end_resp_to_client(client_sockfd);
+                disconnected = true;
+                break;
             case c_get_available_chats:
             {
                 resp->responce = s_success;
-                for(list_of_chats* chat = lc; chat != NULL; chat = chat->next){
-                    strncpy(resp->message_text, chat->name_of_chat, MAX_CHAT_NAME_LEN);
+                for(auto chat : chats){
+                    strncpy(resp->message_text, chat.first.c_str(), MAX_CHAT_NAME_LEN);
                     if(send_resp_to_client(resp, client_sockfd) < 0) perror("Responce failed");
                 }
                 resp->responce = s_resp_end;
@@ -61,48 +80,46 @@ void routine(int client_sockfd){
             }
             case c_create_chat:
             {
-                pthread_mutex_lock(&create_mutex);
+                create_mutex.lock();
                 if(strlen(received->message_text) > MAX_CHAT_NAME_LEN){
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Chat's name is too big");
                     break;
                 }
                 creat(received->message_text, S_IRWXG | S_IRWXO | S_IRWXU);
-                pthread_mutex_lock(&upd_list_mutex);
+                chats_subs_mutex.lock();
                 if(errno == EEXIST) {
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Chat with such name already exists");
                 } 
-                else if(!AddChat(lc, received->message_text)){
-                    perror("Could not add chat to list of chats");
-                    if(remove(received->message_text) < 0){
-                        perror("Could not remove the chat that could not be added to list");
-                    }
-                    strcpy(resp->message_text, "Server error: cannot create chat");
+                else{//if ok -> add the chat to the list of available ones
+                    resp->responce = s_success;
+                    chats.insert(std::string(received->message_text), {});
                 }
-                else resp->responce = s_success;
-                pthread_mutex_unlock(&create_mutex);
-                pthread_mutex_unlock(&upd_list_mutex);
+                create_mutex.unlock();
+                chats_subs_mutex.unlock();
                 break;
             }
             case c_connect_chat:
             {
-                pthread_mutex_lock(&upd_list_mutex);
-                list_of_chats* needed;
-                if(!(needed = findChat(lc, received->message_text))){
-                    lc = addChat(lc, needed);
-                } 
-                addSub(needed, client_sockfd);
-                strncmp(connected_chat, received->message_text, MAX_CHAT_NAME_LEN);
+                chats_subs_mutex.lock();
+                if(chats.count(received->message_text) == 0){
+                    resp->responce = s_failure;
+                    strcpy(resp->message_text, "Can't connect to a non-existant chat");
+                    break;
+                }
+                connected_chat = std::string(received->message_text);
+                //Adding a subscriber to the chat
+                chats[received->message_text].insert(client_sockfd);
                 resp->responce = s_success;
-                pthread_mutex_unlock(&upd_list_mutex);
+                chats_subs_mutex.unlock();
                 //sending it to client
                 struct stat st;
                 stat(received->message_text, &st);
                 write(client_sockfd, &st.st_size, sizeof(off_t));
                 //and so on
                 resp->responce = s_success;
-                pthread_mutex_lock(&chat_mutex);
+                chat_mutex.lock();
                 int chatfd;
                 if((chatfd = open(received->message_text, O_RDONLY)) > 0){
                     for(size_t i = 0; i < st.st_size; i += 256){
@@ -126,51 +143,50 @@ void routine(int client_sockfd){
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Server error: could not open requested chat");
                 }
-                pthread_mutex_unlock(&chat_mutex);
+                chat_mutex.unlock();
+                break;
             }
             case c_leave_chat:
             {
-                pthread_mutex_lock(&upd_list_mutex);
-                list_of_chats* needed = findChat(lc, received->message_text);
-                if (needed != NULL) {
-                    delSub(needed->subs, client_sockfd);
-                    connected_chat[0] = '\0';
+                chats_subs_mutex.lock();
+                if(chats.count(received->message_text)){
+                    chats[received->message_text].erase(client_sockfd);
+                    //connected_chat[0] = '\0';
                     resp->responce = s_success;
                 }
                 else{
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Server error: could not leave chat");
                 }
-                pthread_mutex_unlock(&upd_list_mutex);
+                chats_subs_mutex.unlock();
+                break;
             }
             case c_send_message:
             {
-                pthread_mutex_lock(&chat_mutex);
-                int chatfd = open(connected_chat, O_WRONLY);
-                pthread_mutex_lock(&upd_list_mutex);
+                chat_mutex.lock();
+                int chatfd = open(connected_chat.c_str(), O_WRONLY);
+                chats_subs_mutex.lock();
                 if(chatfd > 0){
-                    write(chatfd, client_name, 32);
+                    write(chatfd, user_name.c_str(), 32);
                     write(chatfd, received->message_text, MAX_MESS_LEN + 1);
                     if(close(chatfd) < 0) perror("Could not close connected chat");
-                    list_of_chats* tmp;
-                    if((tmp = findChat(lc, connected_chat)) != NULL){
-                        for(list_of_subscribers* i = tmp->subs; i != NULL; i= i->next){
-                            if(client_sockfd != i->socket){
-                                resp->responce = s_new_message;
-                                strcpy(resp->message_text, client_name);
-                                send_resp_to_client(resp, i->socket);
-                                strcpy(resp->message_text, received->message_text);
-                                send_resp_to_client(resp, i->socket);
-                            }
-                        } 
+                    resp->responce = s_new_message;
+                    for(auto subs_socket : chats[connected_chat]){
+                        if(client_sockfd != subs_socket){
+                            resp->responce = s_new_message;
+                            strcpy(resp->message_text, user_name.c_str());
+                            send_resp_to_client(resp, subs_socket);
+                            strcpy(resp->message_text, received->message_text);
+                            send_resp_to_client(resp, subs_socket);
+                        }
                     }
                     resp->responce = s_success;
                 }else{
                     resp->responce = s_failure;
                     strcpy(resp->message_text, "Can't write this message: no chat is opened");
                 }
-                pthread_mutex_unlock(&chat_mutex);
-                pthread_mutex_unlock(&upd_list_mutex);
+                chat_mutex.unlock();
+                chats_subs_mutex.unlock();
                 break;
             }
             default:
@@ -185,7 +201,7 @@ void routine(int client_sockfd){
     return;
 }
 
-void accept_connections(int listen_socket, int epollfd, std::vector<epoll_event>& events, std::mutex& mtx) {
+void accept_connections(int listen_socket, int epollfd, std::vector<epoll_event>& events, std::mutex& mtx) { // I/O-Worker
     struct epoll_event ev;
     struct sockaddr_in client_address;
     socklen_t address_length = sizeof(sockaddr_in);
@@ -214,20 +230,8 @@ void accept_connections(int listen_socket, int epollfd, std::vector<epoll_event>
 int main(int argc, char* argv[]){
     using namespace std::chrono_literals;
     struct sockaddr_in server_address;
-    if(!server_starting(lc)) exit(EXIT_FAILURE);
+    if(!server_starting()) exit(EXIT_FAILURE);
     int listen_socket;
-    if(pthread_mutex_init(&chat_mutex, NULL) != 0){
-        perror("Could not initialize chat_mutex");
-        exit(EXIT_FAILURE);
-    }
-    if(pthread_mutex_init(&create_mutex, NULL) != 0){
-        perror("Could not initialize create_mutex");
-        exit(EXIT_FAILURE);
-    }
-    if(pthread_mutex_init(&upd_list_mutex, NULL) != 0){
-        perror("Could not initialize create_mutex");
-        exit(EXIT_FAILURE);
-    }
     struct sockaddr_in address;
     pthread_t *client_threads;
     //fd_set readfds;
@@ -237,9 +241,6 @@ int main(int argc, char* argv[]){
     gethostname(host, 255);
     if(!(hostinfo = gethostbyname(host))){
         fprintf(stderr, "cannot get info for server host: %s\n", host);
-        pthread_mutex_destroy(&chat_mutex);
-        pthread_mutex_destroy(&create_mutex);
-        pthread_mutex_destroy(&upd_list_mutex);
         exit(EXIT_FAILURE);
     }
     /* creates an UN-named socket inside the kernel and returns
@@ -310,19 +311,7 @@ int main(int argc, char* argv[]){
             }
         }
     }
-    perror("Server died and sayed");
-    if(pthread_mutex_destroy(&chat_mutex) != 0){
-        perror("Could not destroy chat_mutex");
-        exit(EXIT_FAILURE);
-    }
-    if(pthread_mutex_destroy(&create_mutex) != 0){
-        perror("Could not destroy create_mutex");
-        exit(EXIT_FAILURE);
-    }
-    if(pthread_mutex_destroy(&upd_list_mutex) != 0){
-        perror("Could not destroy create_mutex");
-        exit(EXIT_FAILURE);
-    }
-    // server_ending(lc);
+    perror("Server died with status");
+    server_ending(); // because why not
     exit(EXIT_SUCCESS);
 }

@@ -9,41 +9,28 @@ static char client_pipe_name[PATH_MAX + 1] = {'\0'};
 static int client_fd = -1;
 static int client_write_fd = -1;
 
-int server_starting(list_of_chats* list){
+int server_starting(){
     #if DEBUG_TRACE
          printf("%d :- server_starting()\n", getpid());
     #endif
-    //check if the chat_sub file exists
-    int chats = open("chat_sub", O_RDONLY | O_CREAT);
-    if(chats < 0){
-        perror("Could not open chat_sub");
+    DIR* cur_dir = opendir(".");
+    if(!cur_dir){
+        perror("Could not open the current directory");
         return 0;
     }
-    int size;
-    char buf[MAX_CHAT_NAME_LEN + 1];
-    for(list_of_chats* runner = list; (size = read(chats, buf, sizeof(list->name_of_chat))) > 0; runner = runner->next){
-        if(size < MAX_CHAT_NAME_LEN + 1) printf(perror, "Did not read full buffer of chat name");
-        addChat(list, buf);
-    }
-    return 1;
+    dirent *file;
+    while((file = readdir(cur_dir))) chats.insert(file->d_name, {});
 }
 
-void server_ending(list_of_chats* list){
+void server_ending(){
     #if DEBUG_TRACE
         printf("%d :- server_ending()\n", getpid());
     #endif
-    remove("chat_sub");
-    int chats = open("chat_sub", O_WRONLY | O_CREAT | O_TRUNC);
-    int size;
-    for(list_of_chats* runner = list; (size = write(chats, (void*)runner, sizeof(list->name_of_chat))) > 0; runner = runner->next){
-        if (size != sizeof(list->name_of_chat)) exit("MEGABRUH!!!");
-    }
-    delChatLis(list);
 }
 
 int read_request_from_client(client_data_t* received, int sockfd){
-    int return_code = 0;
-    int read_bytes;
+    // int return_code = 0;
+    // int read_bytes;
     #if DEBUG_TRACE
         printf("%D :- read_request_from_client()\n", getpid());
     #endif
@@ -64,6 +51,6 @@ void end_resp_to_client(int sockfd){
     #endif
 
     if(close(sockfd) < 0){
-        perror("Could not close chat file");
+        perror("Could not close clients socket");
     }
 }
