@@ -3,6 +3,8 @@
 #include <dirent.h>
 #include <sys/socket.h>
 
+std::unordered_map<std::string, std::unordered_set<int>> chats;
+
 static int server_fd = -1;
 static pid_t my_pid = 0;
 static char client_pipe_name[PATH_MAX + 1] = {'\0'};
@@ -19,7 +21,8 @@ int server_starting(){
         return 0;
     }
     dirent *file;
-    while((file = readdir(cur_dir))) chats.insert(file->d_name, {});
+    while((file = readdir(cur_dir))) chats[file->d_name] = {};
+    return 1;
 }
 
 void server_ending(){

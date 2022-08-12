@@ -8,7 +8,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <pthread.h>
 
 #include <netdb.h> //for gethostname
 #include <dirent.h> //work with file system
@@ -27,6 +26,8 @@
 // #include <atomic>
 #include <unordered_set>
 
+extern std::unordered_map<std::string, std::unordered_set<int>> chats;
+
 static int server_running = 1;
 std::mutex create_mutex;
 std::mutex chat_mutex;
@@ -35,11 +36,6 @@ std::mutex chats_subs_mutex;
 void catch_signals(){
     server_running = 0;
 }
-
-struct init{
-    int desc;
-    char name[32];
-};
 
 void routine(int client_sockfd){
     client_data_t *received = new client_data_t;
@@ -58,7 +54,7 @@ void routine(int client_sockfd){
             }
             send_resp_to_client(resp, client_sockfd);
         }
-        perror("Could not read client's name");
+        else perror("Could not read client's name");
     }
     //after successfull reading of the name, we can work 
     bool disconnected = false;
@@ -94,7 +90,7 @@ void routine(int client_sockfd){
                 } 
                 else{//if ok -> add the chat to the list of available ones
                     resp->responce = s_success;
-                    chats.insert(std::string(received->message_text), {});
+                    chats[std::string(received->message_text)] = {};
                 }
                 create_mutex.unlock();
                 chats_subs_mutex.unlock();
@@ -110,7 +106,7 @@ void routine(int client_sockfd){
                 }
                 connected_chat = std::string(received->message_text);
                 //Adding a subscriber to the chat
-                chats[received->message_text].insert(client_sockfd);
+                chats.at(received->message_text).insert(client_sockfd);
                 resp->responce = s_success;
                 chats_subs_mutex.unlock();
                 //sending it to client
@@ -150,7 +146,7 @@ void routine(int client_sockfd){
             {
                 chats_subs_mutex.lock();
                 if(chats.count(received->message_text)){
-                    chats[received->message_text].erase(client_sockfd);
+                    chats.at(received->message_text).erase(client_sockfd);
                     //connected_chat[0] = '\0';
                     resp->responce = s_success;
                 }
@@ -171,7 +167,7 @@ void routine(int client_sockfd){
                     write(chatfd, received->message_text, MAX_MESS_LEN + 1);
                     if(close(chatfd) < 0) perror("Could not close connected chat");
                     resp->responce = s_new_message;
-                    for(auto subs_socket : chats[connected_chat]){
+                    for(auto subs_socket : chats.at(connected_chat)){
                         if(client_sockfd != subs_socket){
                             resp->responce = s_new_message;
                             strcpy(resp->message_text, user_name.c_str());
@@ -229,33 +225,25 @@ void accept_connections(int listen_socket, int epollfd, std::vector<epoll_event>
 
 int main(int argc, char* argv[]){
     using namespace std::chrono_literals;
-    struct sockaddr_in server_address;
     if(!server_starting()) exit(EXIT_FAILURE);
     int listen_socket;
     struct sockaddr_in address;
-    pthread_t *client_threads;
     //fd_set readfds;
 
-    char host[256];
-    struct hostent *hostinfo;
-    gethostname(host, 255);
-    if(!(hostinfo = gethostbyname(host))){
-        fprintf(stderr, "cannot get info for server host: %s\n", host);
-        exit(EXIT_FAILURE);
-    }
     /* creates an UN-named socket inside the kernel and returns
 	 * an integer known as socket descriptor
 	 * This function takes domain/family as its first argument.
 	 * For Internet family of IPv4 addresses we use AF_INET
 	 */
     listen_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    bzero(&address, sizeof(address));
     address.sin_port = htons(5000); // TO DO: CHANGE TO CONSTANT
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = in_addr_t { (uint)hostinfo->h_addrtype }; // input of machine's adress (CHANGE TO CONSTANT)
+    address.sin_addr.s_addr = inet_addr("127.0.0.1"); // input of machine's adress (CHANGE TO CONSTANT)
     /* The call to the function "bind()" assigns the details specified
 	 * in the structure address to the socket created in the step above
 	 */
-    if (bind(listen_socket, (struct sockaddr*)& server_address, sizeof(server_address)) == -1) {
+    if (bind(listen_socket, (struct sockaddr*)& address, sizeof(address)) == -1) {
         perror("Bind error");
         close(listen_socket);
         return EXIT_FAILURE;
@@ -268,7 +256,6 @@ int main(int argc, char* argv[]){
     }
 
     struct epoll_event ev;
-    std::vector<struct epoll_event> events(std::vector<epoll_event>(1));
     int epollfd;
 
     epollfd = epoll_create1(0);
@@ -283,6 +270,8 @@ int main(int argc, char* argv[]){
         perror("Setting in poll listen socket");
         exit(EXIT_FAILURE);
     }
+    
+    std::vector<struct epoll_event> events(1, ev);
 
     int num = 0, timeout = -1;
     std::mutex mtx;
@@ -301,11 +290,12 @@ int main(int argc, char* argv[]){
                 );
                 timeout = 100;
             } else {
+                int tmp = events[i].data.fd;
                 mtx.lock();
                 std::async(
                     std::launch::async,
                     routine,
-                    events[i].data.fd
+                    tmp
                 );
                 mtx.unlock();
             }

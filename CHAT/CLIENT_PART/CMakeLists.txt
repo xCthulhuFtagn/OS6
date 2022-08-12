@@ -1,46 +1,72 @@
-# Generated from network-chat.pro.
+cmake_minimum_required(VERSION 3.5)
 
-cmake_minimum_required(VERSION 3.16)
-project(network-chat LANGUAGES CXX)
+project(Chat VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
 
-if(NOT DEFINED INSTALL_EXAMPLESDIR)
-  set(INSTALL_EXAMPLESDIR "examples")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+SET(QT_USE_QTNETWORK true)
+
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools Network)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools Network)
+
+set(TS_FILES Chat_ru_RU.ts)
+
+set(PROJECT_SOURCES
+        main.cpp
+        mainwindow.cpp
+        mainwindow.h
+        mainwindow.ui
+        client_interface.h
+        ${TS_FILES}
+)
+
+if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
+    qt_add_executable(Chat
+        MANUAL_FINALIZATION
+        ${PROJECT_SOURCES}
+    )
+# Define target properties for Android with Qt 6 as:
+#    set_property(TARGET Chat APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
+#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
+# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
+
+    qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
+else()
+    if(ANDROID)
+        add_library(Chat SHARED
+            ${PROJECT_SOURCES}
+        )
+# Define properties for Android with Qt 5 after find_package() calls as:
+#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
+    else()
+        add_executable(Chat
+            ${PROJECT_SOURCES}
+        )
+    endif()
+
+    qt5_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 endif()
 
-set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/network/network-chat")
+target_link_libraries(Chat PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Network)
 
-find_package(Qt6 COMPONENTS Core)
-find_package(Qt6 COMPONENTS Gui)
-find_package(Qt6 COMPONENTS Network)
-find_package(Qt6 COMPONENTS Widgets)
-
-qt_add_executable(network-chat
-    chatdialog.cpp chatdialog.h chatdialog.ui
-    client.cpp client.h
-    connection.cpp connection.h
-    main.cpp
-    peermanager.cpp peermanager.h
-    server.cpp server.h
-)
-set_target_properties(network-chat PROPERTIES
-    WIN32_EXECUTABLE TRUE
+set_target_properties(Chat PROPERTIES
+    MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com
+    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
     MACOSX_BUNDLE TRUE
-)
-target_link_libraries(network-chat PUBLIC
-    Qt::Core
-    Qt::Gui
-    Qt::Network
-    Qt::Widgets
+    WIN32_EXECUTABLE TRUE
 )
 
-install(TARGETS network-chat
-    RUNTIME DESTINATION "${INSTALL_EXAMPLEDIR}"
-    BUNDLE DESTINATION "${INSTALL_EXAMPLEDIR}"
-    LIBRARY DESTINATION "${INSTALL_EXAMPLEDIR}"
-)
+install(TARGETS Chat
+    BUNDLE DESTINATION .
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+if(QT_VERSION_MAJOR EQUAL 6)
+    qt_finalize_executable(Chat)
+endif()

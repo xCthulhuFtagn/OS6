@@ -16,7 +16,7 @@
 #define MAX_CHAT_NAME_LEN 32
 #define MAX_NAME_LEN 32
 
-std::unordered_map<std::string, std::unordered_set<int>> chats;
+
 
 typedef enum {
     c_get_available_chats = 0,
