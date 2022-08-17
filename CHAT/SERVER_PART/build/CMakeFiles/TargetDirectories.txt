@@ -1,3 +1,0 @@
-/home/owner/Desktop/dev/cpp/programming/OS6/CHAT/SERVER_PART/build/CMakeFiles/rebuild_cache.dir
-/home/owner/Desktop/dev/cpp/programming/OS6/CHAT/SERVER_PART/build/CMakeFiles/edit_cache.dir
-/home/owner/Desktop/dev/cpp/programming/OS6/CHAT/SERVER_PART/build/CMakeFiles/server.dir
