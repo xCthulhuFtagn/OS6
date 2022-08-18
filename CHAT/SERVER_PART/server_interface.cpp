@@ -7,6 +7,8 @@ std::unordered_map<std::string, std::unordered_set<int>> chats;
 std::unordered_map<int, std::string> user_data;
 std::unordered_set<std::string> used_usernames;
 
+clients without_name, without_chat, disconnected;
+
 static int server_fd = -1;
 static pid_t my_pid = 0;
 static char client_pipe_name[PATH_MAX + 1] = {'\0'};
@@ -39,28 +41,35 @@ int read_request_from_client(client_data_t* received, int sockfd){
     #if DEBUG_TRACE
         printf("%D :- read_request_from_client()\n", getpid());
     #endif
-    err = 0;
+    err = 0, off = 0;
     do {
         off += err;
         err = recv(sockfd, (void*)(received->request) + off, sizeof(client_request_e) - off, MSG_DONTWAIT);
     } while (errno == 0 && off != sizeof(size_t));
     if (errno != 0 && errno != EAGAIN)
         return -1;
-    err = 0;
+    if (errno == EAGAIN)
+        return -EAGAIN;
+    err = 0, off = 0;
     do {
         off += err;
         err = recv(sockfd, (void*)(&length) + off, sizeof(size_t) - off, MSG_DONTWAIT);
     } while (errno == 0 && off != sizeof(size_t));
     if (errno != 0 && errno != EAGAIN)
         return -1;
+    if (errno == EAGAIN)
+        return -EAGAIN;
     received->message_text.resize(length);
-    err = 0;
+    err = 0, off = 0;
     do {
         off += err;
         recv(sockfd, (void*)(received->message_text.c_str()) + off, length - off, MSG_DONTWAIT);
     } while (errno == 0 && off != sizeof(size_t));
     if (errno != 0 && errno != EAGAIN)
         return -1;
+    if (errno == EAGAIN)
+        return -EAGAIN;
+    return err;
 }
 
 void send_resp_to_client(const server_data_t* resp, int sockfd){

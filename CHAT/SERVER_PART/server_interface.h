@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <mutex>
 
 #define MAX_MESS_LEN 256
 #define MAX_CHAT_NAME_LEN 32
@@ -42,6 +43,11 @@ typedef struct {
     server_responce_e responce;
     std::string message_text;
 } server_data_t;
+
+struct clients {
+    std::mutex client_mut;
+    std::vector<int> client_fds;
+};
 
 int server_starting();
 void server_ending();
