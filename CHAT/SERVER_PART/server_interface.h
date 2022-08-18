@@ -7,16 +7,31 @@
 #include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/epoll.h> /* "Главный" по прослушке */
+#include <sys/types.h>
+
+#include <netdb.h>    //for gethostname
+#include <dirent.h>   //work with file system
+#include <errno.h>    //error codes and so on
+#include <sys/stat.h> // additional file functions & info
+#include <string.h> //working with old style strings
 
 #include <unordered_set>
 #include <unordered_map>
-#include <vector>
 #include <string>
 #include <mutex>
-
-#define MAX_MESS_LEN 256
-#define MAX_CHAT_NAME_LEN 32
-#define MAX_NAME_LEN 32
+#include <ctime>
+#include <vector>
+#include <thread>
+#include <atomic>
+#include <algorithm>
 
 typedef enum {
     c_set_name = 0,
@@ -44,10 +59,9 @@ typedef struct {
     std::string message_text;
 } server_data_t;
 
-struct clients {
-    std::mutex client_mut;
-    std::vector<int> client_fds;
-};
+typedef struct{
+    int in, out;
+} chat_pipe;
 
 int server_starting();
 void server_ending();

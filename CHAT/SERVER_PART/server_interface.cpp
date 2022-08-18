@@ -7,8 +7,6 @@ std::unordered_map<std::string, std::unordered_set<int>> chats;
 std::unordered_map<int, std::string> user_data;
 std::unordered_set<std::string> used_usernames;
 
-clients without_name, without_chat, disconnected;
-
 static int server_fd = -1;
 static pid_t my_pid = 0;
 static char client_pipe_name[PATH_MAX + 1] = {'\0'};
