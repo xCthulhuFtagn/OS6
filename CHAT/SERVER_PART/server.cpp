@@ -5,13 +5,14 @@ extern std::unordered_set<std::string> used_usernames;
 extern std::unordered_map<int, std::string> user_data;
 
 static int server_running = 1;
-int disco_pipe;
+int disco_pipe[2], list_chats_pipe[2], username_enter_pipe[2];
+
 void catch_signals()
 {
     server_running = 0;
 }
 
-void chat_message(int go_in_chat_pipe_input, int disconnect_pipe_output, int exit_chat_pipe_output) {
+void chat_message(int go_in_chat_pipe_input) {
     std::string all_messages;
     client_data_t client_data;
     server_data_t server_data;
@@ -39,6 +40,11 @@ void chat_message(int go_in_chat_pipe_input, int disconnect_pipe_output, int exi
             messages_offset[ev.data.fd] = 0;
             epoll_ctl(chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
         }
+        if (read_bytes < 0) {
+            perror("pipe");
+            close(chat_epoll_fd);
+            return;
+        }
         // wait for messages
         int n = epoll_wait(chat_epoll_fd, vec_of_events.data(), vec_of_events.size(), 25);
         if (n < 0) {
@@ -52,18 +58,18 @@ void chat_message(int go_in_chat_pipe_input, int disconnect_pipe_output, int exi
 
             for (off = 0; off < n; ++off) {
                 int err;
-                int& fd = vec_of_events[off].data.fd;
+                int fd = vec_of_events[off].data.fd;
                 while ((err = read_request_from_client(&client_data, fd)) > 0) {
                     //depend on type of message do what to need to
                     switch (client_data.request)
                     {
                         case c_leave_chat:
-                            write(exit_chat_pipe_output, &fd, sizeof(int));
+                            write(list_chats_pipe[1], &fd, sizeof(int));
                             epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
                             messages_offset.erase(fd);
                             break;
                         case c_disconnect:
-                            write(disconnect_pipe_output, &fd, sizeof(int));
+                            write(disco_pipe[1], &fd, sizeof(int));
                             epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
                             messages_offset.erase(fd);
                             break;
@@ -81,14 +87,14 @@ void chat_message(int go_in_chat_pipe_input, int disconnect_pipe_output, int exi
                     }
                 }
                 if (err == 0)
-                    write(disconnect_pipe_output, &fd, sizeof(int));
+                    write(disco_pipe[1], &fd, sizeof(int));
             }
         }
         // TODO : write to file
         // sending data to all sockets
         if (messages_offset.size() != vec_of_events.size())
             vec_of_events.resize(messages_offset.size());
-        for (auto& [fd, off] : messages_offset) {
+        for (auto&& [fd, off] : messages_offset) {
             server_data.responce = s_new_message;
             server_data.message_text = all_messages.substr(off);
             send_resp_to_client(&server_data, fd);
@@ -132,7 +138,8 @@ void list_of_chats(int end_to_read_from) {
                 while (read_request_from_client(&received, client_sockfd) > 0) {
                     switch(received.request){
                         case c_disconnect:
-                        end_resp_to_client(client_sockfd);
+                        write(disco_pipe[1], &client_sockfd, sizeof(int));
+                        epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                         break;
                         case c_create_chat:
                             creat(received.message_text.c_str(), S_IRWXG | S_IRWXO | S_IRWXU);
@@ -156,13 +163,10 @@ void list_of_chats(int end_to_read_from) {
                             }
                             //if chat was unused -> setup
                             if(chats[received.message_text].first.size() == 0){
-                                int tmp_pipe[2];
-                                if(pipe(tmp_pipe) < 0) {
+                                if(pipe((int *)&(chats[received.message_text].second)) < 0) {
                                     perror("Could not open pipe to chat");
                                 }
-                                chats[received.message_text].second.in = tmp_pipe[1];
-                                chats[received.message_text].second.out = tmp_pipe[0];
-                                std::thread(chat_message, tmp_pipe[1], disco_pipe[1], end).detach();//auto chat_thread = 
+                                std::thread(chat_message, chats[received.message_text].second.in).detach();//auto chat_thread = 
                             }
                             // Adding a subscriber to the chat
                             chats.at(received.message_text).first.insert(client_sockfd);
@@ -173,6 +177,7 @@ void list_of_chats(int end_to_read_from) {
                             write(client_sockfd, &st.st_size, sizeof(off_t));
                             // sending sockfd to chat
                             write(chats[received.message_text].second.in, &client_sockfd, sizeof(int));
+                            epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                             break;
                         default:
                             fprintf(stderr, "Wrong request from client : %d\n", received.request);
@@ -202,12 +207,11 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
             ev.data.fd = new_socket;
             vec_of_events.push_back(ev);
             epoll_ctl(no_name_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
-            get_available_chats(new_socket);
         }
         if(bytes < 0){
             perror("Name pipe error");
         }
-        int n = epoll_wait(no_chat_epoll_fd, vec_of_events.data(), vec_of_events.size(), 100);
+        int n = epoll_wait(no_name_epoll_fd, vec_of_events.data(), vec_of_events.size(), 100);
         if (n < 0) {
             perror("epoll wait");
             return;
@@ -215,37 +219,35 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
             for (int i = 0; i < n; ++i) {
                 int client_sockfd = vec_of_events[i].data.fd;
                 resp.responce = s_failure;
-                read_request_from_client(received, client_sockfd);
+                read_request_from_client(&received, client_sockfd);
+                if(received.request == c_disconnect){
+                    write(disco_pipe[1], &client_sockfd, sizeof(int));
+                    epoll_ctl(no_name_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                    continue;
+                }
                 if(used_usernames.count(received.message_text) == 0) {
                     // user_data[client_sockfd] = received.message_text;
                     used_usernames.insert(received.message_text);
                     resp.responce = s_success;
                     write(end_to_write_to, &client_sockfd, sizeof(int));
-                    it = no_name_sockets.erase(it);
+                    epoll_ctl(no_name_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                 }
-                send_resp_to_client(resp, client_sockfd);
+                send_resp_to_client(&resp, client_sockfd);
             }
         }
     }
 }
 
-void disconnect(int user_name_delete, int list_of_chat_delete){
+void disconnect(){
     int read_bytes, fd;
     while (true) {
-        while ((read_bytes = read(user_name_delete, &fd, sizeof(int))) > 0) {
-            close(fd);
+        while ((read_bytes = read(disco_pipe[0], &fd, sizeof(int))) > 0) {
+            end_resp_to_client(fd);
             used_usernames.erase(user_data[fd]);
             user_data.erase(fd);
         }
         if (read_bytes < 0)
-            perror("Read disconnected user from user name");
-        while ((read_bytes = read(list_of_chat_delete, &fd, sizeof(int))) > 0) {
-            close(fd);
-            used_usernames.erase(user_data[fd]);
-            user_data.erase(fd);
-        }
-        if (read_bytes < 0)
-            perror("Read disconnected user from list of chats");
+            perror("Read disconnected user_fd from pipe");
     }
 }
 
@@ -268,9 +270,9 @@ int main(int argc, char *argv[])
     auto param = 1;
     setsockopt(listen_socket, SOL_SOCKET, SOCK_NONBLOCK, (void *)&param, sizeof(int));
     bzero(&address, sizeof(address));
-    address.sin_port = htons(5000); // TO DO: CHANGE TO CONSTANT
+    address.sin_port = htons(5000);
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr("127.0.0.1"); // input of machine's adress (CHANGE TO CONSTANT)
+    address.sin_addr.s_addr = inet_addr("127.0.0.1");
     /* The call to the function "bind()" assigns the details specified
      * in the structure address to the socket created in the step above
      */
@@ -287,24 +289,43 @@ int main(int argc, char *argv[])
         shutdown(listen_socket, SHUT_RDWR);
         return EXIT_FAILURE;
     }
-
-    if(pipe(disco_pipe) < 0){
-        perror("Disconnection pipe error");
+    if(pipe(list_chats_pipe) < 0){
+        perror("List of chats pipe opening error");
         shutdown(listen_socket, SHUT_RDWR);
         return EXIT_FAILURE;
     }
+    if(pipe(disco_pipe) < 0){
+        perror("Disconnection pipe opening error");
+        shutdown(listen_socket, SHUT_RDWR);
+        close(list_chats_pipe[0]);
+        close(list_chats_pipe[1]);
+        return EXIT_FAILURE;
+    }
+    if(pipe(username_enter_pipe) < 0){
+        perror("Username enter pipe opening error");
+        shutdown(listen_socket, SHUT_RDWR);
+        close(list_chats_pipe[0]);
+        close(list_chats_pipe[1]);
+        close(disco_pipe[0]);
+        close(disco_pipe[1]);
+        return EXIT_FAILURE;
+    }
+
+    std::thread(user_name_enter, username_enter_pipe[0], list_chats_pipe[1]).detach();
+    std::thread(list_of_chats, list_chats_pipe[0]).detach();
+    std::thread(disconnect).detach();
 
     struct sockaddr_in client_address;
     socklen_t address_length = sizeof(sockaddr_in);
     int connection_socket;
     while ((connection_socket = accept(listen_socket, (struct sockaddr *)&client_address, &address_length)) != -1)
     {
-        //
+        write(username_enter_pipe[1], &connection_socket, sizeof(int));
     }
     if (!(errno & (EAGAIN | EWOULDBLOCK)))
     {
         perror("Accept failure");
-        return;
+        return EXIT_FAILURE;
     }
     perror("Server died with status");
     server_ending(); // because why not
