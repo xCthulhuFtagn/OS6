@@ -13,7 +13,8 @@ void catch_signals()
 }
 
 void chat_message(int go_in_chat_pipe_input) {
-    std::string all_messages;
+    std::list<std::string> all_messages;
+    std::string message;
     client_data_t client_data;
     server_data_t server_data;
 
@@ -23,7 +24,7 @@ void chat_message(int go_in_chat_pipe_input) {
         return;
     }
     std::vector<epoll_event> vec_of_events;
-    std::unordered_map<int, size_t> messages_offset;
+    std::unordered_map<int, std::list<std::string>::iterator> messages_offset;
     epoll_event ev;
     ev.events = EPOLLEXCLUSIVE | EPOLLIN | EPOLLET;
 
@@ -35,19 +36,19 @@ void chat_message(int go_in_chat_pipe_input) {
     while (true) {
         // changing vector of events
         int read_bytes;
-        while ((read_bytes = read(go_in_chat_pipe_input, (void*)ev.data.fd, sizeof(int))) > 0) {
+        while ((read_bytes = read(go_in_chat_pipe_input, (void*)(&ev.data.fd), sizeof(int))) > 0) {
             vec_of_events.push_back(ev);
-            messages_offset[ev.data.fd] = 0;
+            messages_offset[ev.data.fd] = all_messages.begin();
             epoll_ctl(chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
         }
-        if (read_bytes < 0) {
+        if (read_bytes < 0 && errno != EAGAIN && errno != EINTR) {
             perror("pipe");
             close(chat_epoll_fd);
             return;
         }
         // wait for messages
         int n = epoll_wait(chat_epoll_fd, vec_of_events.data(), vec_of_events.size(), 25);
-        if (n < 0) {
+        if (n < 0 && errno != EINVAL && errno != EINTR) {
             perror("epoll wait");
             close(chat_epoll_fd);
             return;
@@ -74,12 +75,12 @@ void chat_message(int go_in_chat_pipe_input) {
                             messages_offset.erase(fd);
                             break;
                         case c_send_message:
-                            all_messages.append(user_data[fd]);
-                            all_messages.push_back('\t');
-                            all_messages.append(timedate_string);
-                            all_messages.push_back('\n');
-                            all_messages.append(client_data.message_text);
-                            all_messages.push_back('\0');
+                            message.append(user_data[fd]);
+                            message.push_back('\t');
+                            message.append(timedate_string);
+                            message.push_back('\n');
+                            message.append(client_data.message_text);
+                            all_messages.push_back(message);
                             break;
                         default:
                             fprintf(stderr, "Client %d send unacceptable message\n", fd);
@@ -95,11 +96,11 @@ void chat_message(int go_in_chat_pipe_input) {
         if (messages_offset.size() != vec_of_events.size())
             vec_of_events.resize(messages_offset.size());
         for (auto&& [fd, off] : messages_offset) {
-            server_data.responce = s_new_message;
-            server_data.message_text = all_messages.substr(off);
-            send_resp_to_client(&server_data, fd);
-            off = all_messages.size();
-            ++n;
+            for (; next(off) != all_messages.end(); ++off) {
+                server_data.responce = s_new_message;
+                server_data.message_text = *off;
+                send_resp_to_client(&server_data, fd);
+            }
         }
     }
     close(chat_epoll_fd);
@@ -125,11 +126,11 @@ void list_of_chats(int end_to_read_from) {
             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
             get_available_chats(new_socket);
         }
-        if(bytes < 0){
+        if(bytes < 0 && errno != EAGAIN && errno != EINTR){
             perror("List of chats pipe error");
         }
         int n = epoll_wait(no_chat_epoll_fd, vec_of_events.data(), vec_of_events.size(), 100);
-        if (n < 0) {
+        if (n < 0 && errno != EINVAL) {
             perror("epoll wait");
             return;
         } else if (n > 0) {
@@ -203,16 +204,16 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
     client_data_t received;
     int new_socket, bytes;
     while(true){
-        while(bytes = read(end_to_read_from, &new_socket, sizeof(int))) {
+        while((bytes = read(end_to_read_from, &new_socket, sizeof(int))) > 0) {
             ev.data.fd = new_socket;
             vec_of_events.push_back(ev);
             epoll_ctl(no_name_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
         }
-        if(bytes < 0){
+        if(bytes < 0 && errno != EAGAIN){
             perror("Name pipe error");
         }
         int n = epoll_wait(no_name_epoll_fd, vec_of_events.data(), vec_of_events.size(), 100);
-        if (n < 0) {
+        if (n < 0 && errno != EINVAL && errno != EINTR) {
             perror("epoll wait");
             return;
         } else if (n > 0) {
@@ -246,8 +247,9 @@ void disconnect(){
             used_usernames.erase(user_data[fd]);
             user_data.erase(fd);
         }
-        if (read_bytes < 0)
+        if (read_bytes < 0 && errno != EAGAIN && errno != EINTR) {
             perror("Read disconnected user_fd from pipe");
+        }
     }
 }
 
@@ -266,9 +268,9 @@ int main(int argc, char *argv[])
      * This function takes domain/family as its first argument.
      * For Internet family of IPv4 addresses we use AF_INET
      */
-    listen_socket = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
-    auto param = 1;
-    setsockopt(listen_socket, SOL_SOCKET, SOCK_NONBLOCK, (void *)&param, sizeof(int));
+    listen_socket = socket(AF_INET, SOCK_STREAM /*| SOCK_NONBLOCK*/, IPPROTO_TCP);
+    // auto param = 1;
+    // setsockopt(listen_socket, SOL_SOCKET, SOCK_NONBLOCK, (void *)&param, sizeof(int));
     bzero(&address, sizeof(address));
     address.sin_port = htons(5000);
     address.sin_family = AF_INET;
@@ -310,6 +312,9 @@ int main(int argc, char *argv[])
         close(disco_pipe[1]);
         return EXIT_FAILURE;
     }
+    fcntl(list_chats_pipe[0], F_SETFL, fcntl(list_chats_pipe[0], F_GETFL) | O_NONBLOCK);
+    fcntl(disco_pipe[0], F_SETFL, fcntl(disco_pipe[0], F_GETFL) | O_NONBLOCK);
+    fcntl(username_enter_pipe[0], F_SETFL, fcntl(username_enter_pipe[0], F_GETFL) | O_NONBLOCK);
 
     std::thread(user_name_enter, username_enter_pipe[0], list_chats_pipe[1]).detach();
     std::thread(list_of_chats, list_chats_pipe[0]).detach();

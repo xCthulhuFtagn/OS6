@@ -32,6 +32,7 @@
 #include <thread>
 #include <atomic>
 #include <algorithm>
+#include <list>
 
 typedef enum {
     c_set_name = 0,
@@ -45,8 +46,7 @@ typedef enum {
 typedef enum {
     s_success = 0,
     s_failure,
-    s_new_message,
-    s_resp_end
+    s_new_message
 } server_responce_e;
 
 typedef struct {

@@ -61,7 +61,7 @@ int read_request_from_client(client_data_t* received, int sockfd){
     err = 0, off = 0;
     do {
         off += err;
-        recv(sockfd, (void*)(received->message_text.c_str()) + off, length - off, MSG_DONTWAIT);
+        recv(sockfd, (void*)(received->message_text.data()) + off, length - off, MSG_DONTWAIT);
     } while (errno == 0 && off != sizeof(size_t));
     if (errno != 0 && errno != EAGAIN)
         return -1;

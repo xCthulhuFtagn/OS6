@@ -1,7 +1,6 @@
 #ifndef CLIENT_INTERFACE_H
 #define CLIENT_INTERFACE_H
-
-#define MAX_MESS_LEN 128
+#include <string>
 #define MAX_CHAT_NAME_LEN 32
 #define MAX_NAME_LEN 32
 
@@ -18,17 +17,18 @@ typedef enum {
     s_success = 0,
     s_failure,
     s_resp_end,
-    s_new_message
+    s_new_message,
+    s_end_message
 } server_responce_e;
 
 typedef struct {
     client_request_e request;
-    char message_text[MAX_MESS_LEN + 1];
+    std::string message_text;
 } client_data_t;
 
 typedef struct {
     server_responce_e responce;
-    char message_text[MAX_MESS_LEN + 1];
+    std::string message_text;
 } server_data_t;
 
 #endif // CLIENT_INTERFACE_H

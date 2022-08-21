@@ -5,6 +5,7 @@
 #include <QTcpSocket>
 #include "client_interface.h"
 #include <QMessageBox>
+#include <QStandardItemModel>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -27,9 +28,12 @@ private:
     Ui::MainWindow *ui;
     QTcpSocket *socket;
     QMessageBox* ErrorBox = nullptr;
+    QStandardItemModel* model;
+    QThread* ChatRoutine;
     void GetAvailableChats();
     void StartConnection();
     void SendToServer(client_data_t*);
+    void ReadFromServer(server_data_t* s_d);
     client_data_t* c_message;
     server_data_t* s_message;
 };
