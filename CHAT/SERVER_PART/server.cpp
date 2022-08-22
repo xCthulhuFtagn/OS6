@@ -130,7 +130,7 @@ void list_of_chats(int end_to_read_from) {
             perror("List of chats pipe error");
         }
         int n = epoll_wait(no_chat_epoll_fd, vec_of_events.data(), vec_of_events.size(), 100);
-        if (n < 0 && errno != EINVAL) {
+        if (n < 0 && errno != EINVAL && errno != EINTR) {
             perror("epoll wait");
             return;
         } else if (n > 0) {

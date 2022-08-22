@@ -2,8 +2,11 @@
 #include "./ui_mainwindow.h"
 #include <string.h>
 #include <QTableView>
+#include <QListWidget>
 #include <QPushButton>
 #include <QDebug>
+#include <sstream>
+#include "client_interface.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -12,12 +15,12 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     c_message = new client_data_t;
     s_message = new server_data_t;
-    ChatRoutine = new QThread();
+    socket = new QTcpSocket(this);
+    CRH = new ChatRoutineHandler(this, socket);
     StartConnection();
 }
 
 void MainWindow::StartConnection(){
-    socket = new QTcpSocket(this);
     socket->connectToHost("127.0.0.1", 5000);
     if(socket->waitForConnected(3000)){
         qDebug() << "Connected!";
@@ -33,46 +36,20 @@ MainWindow::~MainWindow()
     delete s_message;
     delete c_message;
     delete ui;
-    delete ChatRoutine;
-}
-
-void MainWindow::SendToServer(client_data_t* c_d){
-    int written = socket->write(QByteArray::fromRawData((char*)(&c_d->request), sizeof(client_request_e))); //writes by using this bullshit interface
-    size_t tmp = c_d->message_text.size();
-    written = socket->write(QByteArray::fromRawData((char*)(&tmp), sizeof(size_t))); //writes by using this bullshit interface
-    written = socket->write(QByteArray::fromRawData((char*)(c_d->message_text.c_str()), c_d->message_text.size())); //writes by using this bullshit interface
-    qDebug() << "Written a message to server";
-}
-
-void MainWindow::ReadFromServer(server_data_t* s_d){
-    socket->waitForReadyRead();
-    socket->read((char*)&s_d->responce, sizeof(server_responce_e));
-    size_t length;
-    socket->read((char*)&length, sizeof(size_t));
-    s_d->message_text.resize(length);
-    socket->read((char*)s_d->message_text.data(), length);
+    delete CRH;
 }
 
 void MainWindow::on_NameLine_returnPressed()
 {
     if(ui->NameLine->text().size() > 32){
-        if(!ErrorBox){
-            ErrorBox = new QMessageBox();
-            ui->verticalLayout->insertWidget(2,ErrorBox);
-        }
-        ErrorBox->setText("Your name is too big");
+        QMessageBox::warning(this, "ACHTUNG!","This name is too big!");
     }
     else{
         c_message->message_text = ui->NameLine->text().toStdString();
-        SendToServer(c_message);
-        ReadFromServer(s_message);
+        SendToServer(socket, c_message);
+        ReadFromServer(socket, s_message);
         if(s_message->responce == s_failure){
-            if(!ErrorBox){
-                ErrorBox = new QMessageBox();
-//                ErrorBox->setText("Your name is already used");
-                ui->verticalLayout->insertWidget(2,ErrorBox);
-            }
-            ErrorBox->setText("Your name is already used");
+            QMessageBox::warning(this, "ACHTUNG!","This name is already used!");
         }
         else{
             //deleting start ui
@@ -86,23 +63,20 @@ void MainWindow::on_NameLine_returnPressed()
             QLineEdit* NewChatLine = new QLineEdit();
             ui->verticalLayout->insertWidget(0, NewChatLine);
             QTableView* ChatsTable = new QTableView;
-            model =  new QStandardItemModel(0, 1, this);
-            ChatsTable->setModel(model);
+            ChatsTable->setModel(new QStandardItemModel(0, 1, this));
             //need to get chats' names
-            c_message->request = c_get_available_chats;
-            SendToServer(c_message);
             int expected = sizeof(server_data_t);
-            int row = 1;
-            do{
-                ReadFromServer(s_message);
-                if(s_message->responce == s_success){
-                    //got a name of a chat
+            ReadFromServer(socket, s_message);
+            if(s_message->responce == s_success){
+                std::stringstream sstream(s_message->message_text);
+                std::string tmp;
+                for(size_t row = 1; !sstream.eof(); ++row){
                     QPushButton* chat = new QPushButton;
+                    std::getline(sstream, tmp);
                     connect(chat, &QPushButton::clicked, this, &MainWindow::on_ChatButton_Clicked);
-                    ChatsTable->setIndexWidget(model->index(row, 1), chat);
-                    ++row;
+                    ChatsTable->setIndexWidget(ChatsTable->model()->index(row, 1), chat);
                 }
-            }while(s_message->responce == s_success);
+            }
             //if(s_message->responce == s_failure) oh fuck
             ui->verticalLayout->insertWidget(1, ChatsTable);
 
@@ -114,27 +88,28 @@ void MainWindow::on_ChatButton_Clicked(){
     QPushButton* chat = qobject_cast<QPushButton*>(sender()); // get QObject that emitted the signal
     c_message->request = c_connect_chat;
     c_message->message_text = chat->text().toStdString();
-    SendToServer(c_message);
-    ReadFromServer(s_message);
+    SendToServer(socket, c_message);
+    ReadFromServer(socket, s_message);
     if(s_message->responce == s_success){
         //chat forming
-        QLayoutItem *wItem;
+       QLayoutItem *wItem;
         while ((wItem = ui->verticalLayout->layout()->takeAt(0)) != 0) {
             delete wItem->widget();
             delete wItem;
         }
-        delete model;
-        model =  new QStandardItemModel(0, 1, this);
-        QTableView* qtv = new QTableView();
-        qtv->setModel(model);
-        ui->verticalLayout->insertWidget(0, qtv);
-        ChatRoutine->run();
-        for(ReadFromServer(s_message); s_message->responce == s_new_message; ReadFromServer(s_message)){
-            auto it1 = s_message->message_text.find_first_of("\t");
-            auto it2 = s_message->message_text.find_first_of("\n");
-        }
+        QListWidget* QLW = new QListWidget();
+        ui->verticalLayout->insertWidget(0, QLW);
+        CRH->startThread();
     }
     else{
         QMessageBox::warning(this, "ACHTUNG!", "Could not connect to this chat!");
     }
+}
+
+void MainWindow::on_newMessage(std::string& message_text){
+    static size_t row = 0;
+    auto it1 = message_text.find_first_of("\t");
+    auto it2 = message_text.find_first_of("\n");
+    auto QLW = qobject_cast<QListWidget*>(ui->verticalLayout->itemAt(0)->widget());
+    QLW->insertItem(row++, QString(message_text.c_str()));
 }

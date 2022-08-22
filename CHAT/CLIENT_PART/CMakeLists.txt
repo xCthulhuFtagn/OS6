@@ -23,6 +23,9 @@ set(PROJECT_SOURCES
         mainwindow.h
         mainwindow.ui
         client_interface.h
+        client_interface.cpp
+        chatroutine.h
+        chatroutine.cpp
         ${TS_FILES}
 )
 

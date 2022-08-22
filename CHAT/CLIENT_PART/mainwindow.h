@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QTcpSocket>
 #include "client_interface.h"
+#include "chatroutine.h"
 #include <QMessageBox>
 #include <QStandardItemModel>
 
@@ -18,22 +19,18 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-public slots:
-
+// public slots:
 private slots:
     void on_NameLine_returnPressed();
     void on_ChatButton_Clicked();
+    void on_newMessage(std::string&);
 
 private:
     Ui::MainWindow *ui;
     QTcpSocket *socket;
-    QMessageBox* ErrorBox = nullptr;
-    QStandardItemModel* model;
-    QThread* ChatRoutine;
+    ChatRoutineHandler* CRH;
     void GetAvailableChats();
     void StartConnection();
-    void SendToServer(client_data_t*);
-    void ReadFromServer(server_data_t* s_d);
     client_data_t* c_message;
     server_data_t* s_message;
 };

@@ -1,6 +1,7 @@
 #ifndef CLIENT_INTERFACE_H
 #define CLIENT_INTERFACE_H
 #include <string>
+#include <QTcpSocket>
 #define MAX_CHAT_NAME_LEN 32
 #define MAX_NAME_LEN 32
 
@@ -16,9 +17,7 @@ typedef enum {
 typedef enum {
     s_success = 0,
     s_failure,
-    s_resp_end,
-    s_new_message,
-    s_end_message
+    s_new_message
 } server_responce_e;
 
 typedef struct {
@@ -30,5 +29,10 @@ typedef struct {
     server_responce_e responce;
     std::string message_text;
 } server_data_t;
+
+bool SendToServer(QTcpSocket*, client_data_t*);
+bool ReadFromServer(QTcpSocket*, server_data_t*);
+
+
 
 #endif // CLIENT_INTERFACE_H

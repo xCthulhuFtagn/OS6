@@ -1,6 +1,6 @@
 #include "server_interface.h"
 #include <errno.h> //extra
-#include <dirent.h>
+#include <filesystem>
 #include <sys/socket.h>
 
 std::unordered_map<std::string, std::unordered_set<int>> chats;
@@ -14,16 +14,16 @@ static int client_fd = -1;
 static int client_write_fd = -1;
 
 int server_starting(){
+    namespace fs = std::filesystem;
     #if DEBUG_TRACE
          printf("%d :- server_starting()\n", getpid());
     #endif
-    DIR* cur_dir = opendir(".");
-    if(!cur_dir){
-        perror("Could not open the current directory");
-        return 0;
+    fs::path path_of_chats(".");
+    for (const auto& entry : fs::directory_iterator(path_of_chats)) {
+        if (entry.is_regular_file() && fs::path(entry).extension() == ".chat") {
+            chats[fs::path(entry).filename()] = {};
+        }
     }
-    dirent *file;
-    while((file = readdir(cur_dir))) chats[file->d_name] = {};
     return 1;
 }
 
@@ -74,9 +74,11 @@ void send_resp_to_client(const server_data_t* resp, int sockfd){
     #if DEBUG_TRACE
         printf("%d : - send_resp_to_client()\n", getpid());
     #endif
-    send(sockfd, (void*)(resp->responce), sizeof(server_responce_e), MSG_WAITALL);
-    send(sockfd, (void*)(resp->message_text.size()), sizeof(int), MSG_WAITALL);
-    send(sockfd, (void*)(resp->message_text.c_str()), resp->message_text.size(), MSG_WAITALL);
+    int written_bytes;
+    written_bytes = send(sockfd, (void*)(&resp->responce), sizeof(server_responce_e), MSG_WAITALL);
+    size_t length = resp->message_text.size();
+    written_bytes = send(sockfd, (void*)(&length), sizeof(size_t), MSG_WAITALL);
+    written_bytes = send(sockfd, (void*)(resp->message_text.c_str()), resp->message_text.size(), MSG_WAITALL);
 }
 
 void end_resp_to_client(int sockfd){
