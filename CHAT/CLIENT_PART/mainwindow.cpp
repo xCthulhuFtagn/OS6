@@ -31,6 +31,36 @@ void MainWindow::StartConnection(){
     connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
 }
 
+void MainWindow::GetAvailableChats(){
+    //deleting start ui
+    QLayoutItem *wItem;
+    while ((wItem = ui->verticalLayout->layout()->takeAt(0)) != 0) {
+        delete wItem->widget();
+        delete wItem;
+    }
+    //creating mid ui
+    QLineEdit* NewChatLine = new QLineEdit();
+    connect(NewChatLine, &QLineEdit::returnPressed, this, &MainWindow::on_createChat);
+    ui->verticalLayout->insertWidget(0, NewChatLine);
+    QTableView* ChatsTable = new QTableView;
+    ChatsTable->setModel(new QStandardItemModel(0, 1, this));
+    //need to get chats' names
+    ReadFromServer(socket, s_message);
+    if(s_message->responce == s_success){
+        std::stringstream sstream(s_message->message_text);
+        std::string tmp;
+        for(size_t row = 1; !sstream.eof(); ++row){
+            QPushButton* chat = new QPushButton;
+            std::getline(sstream, tmp);
+            connect(chat, &QPushButton::clicked, this, &MainWindow::on_ChatButton_Clicked);
+            ChatsTable->setIndexWidget(ChatsTable->model()->index(row, 1), chat);
+        }
+    }
+    //if(s_message->responce == s_failure) oh fuck
+    ui->verticalLayout->insertWidget(1, ChatsTable);
+
+}
+
 MainWindow::~MainWindow()
 {
     delete s_message;
@@ -52,34 +82,7 @@ void MainWindow::on_NameLine_returnPressed()
             QMessageBox::warning(this, "ACHTUNG!","This name is already used!");
         }
         else{
-            //deleting start ui
-//            qDeleteAll(ui->verticalLayout->findChildren<QWidget*>(Qt::FindDirectChildrenOnly));
-            QLayoutItem *wItem;
-            while ((wItem = ui->verticalLayout->layout()->takeAt(0)) != 0) {
-                delete wItem->widget();
-                delete wItem;
-            }
-            //creating mid ui
-            QLineEdit* NewChatLine = new QLineEdit();
-            ui->verticalLayout->insertWidget(0, NewChatLine);
-            QTableView* ChatsTable = new QTableView;
-            ChatsTable->setModel(new QStandardItemModel(0, 1, this));
-            //need to get chats' names
-            int expected = sizeof(server_data_t);
-            ReadFromServer(socket, s_message);
-            if(s_message->responce == s_success){
-                std::stringstream sstream(s_message->message_text);
-                std::string tmp;
-                for(size_t row = 1; !sstream.eof(); ++row){
-                    QPushButton* chat = new QPushButton;
-                    std::getline(sstream, tmp);
-                    connect(chat, &QPushButton::clicked, this, &MainWindow::on_ChatButton_Clicked);
-                    ChatsTable->setIndexWidget(ChatsTable->model()->index(row, 1), chat);
-                }
-            }
-            //if(s_message->responce == s_failure) oh fuck
-            ui->verticalLayout->insertWidget(1, ChatsTable);
-
+            GetAvailableChats();
         }
     }
 }
@@ -112,4 +115,18 @@ void MainWindow::on_newMessage(std::string& message_text){
     auto it2 = message_text.find_first_of("\n");
     auto QLW = qobject_cast<QListWidget*>(ui->verticalLayout->itemAt(0)->widget());
     QLW->insertItem(row++, QString(message_text.c_str()));
+}
+
+void MainWindow::on_createChat(){
+    auto line = qobject_cast<QLineEdit*>(sender());
+    c_message->request = c_create_chat;
+    c_message->message_text = line->text().toStdString();
+    SendToServer(socket, c_message);
+    ReadFromServer(socket, s_message);
+    if(s_message->responce == s_failure){
+        QMessageBox::warning(this, "ACHTUNG!", "Could not create this chat");
+    }
+    else{
+        GetAvailableChats();
+    }
 }

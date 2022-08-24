@@ -24,6 +24,7 @@ private slots:
     void on_NameLine_returnPressed();
     void on_ChatButton_Clicked();
     void on_newMessage(std::string&);
+    void on_createChat();
 
 private:
     Ui::MainWindow *ui;
