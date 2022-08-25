@@ -67,5 +67,5 @@ int server_starting();
 void server_ending();
 int read_request_from_client(client_data_t* received, int sockfd);
 void send_resp_to_client(const server_data_t* resp, int sockfd);
-void get_available_chats(int sockfd);
+void send_available_chats(int sockfd);
 void end_resp_to_client(int sockfd);

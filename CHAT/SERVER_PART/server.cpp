@@ -124,7 +124,7 @@ void list_of_chats(int end_to_read_from) {
             ev.data.fd = new_socket;
             vec_of_events.push_back(ev);
             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
-            get_available_chats(new_socket);
+            send_available_chats(new_socket);
         }
         if(bytes < 0 && errno != EAGAIN && errno != EINTR){
             perror("List of chats pipe error");
@@ -136,7 +136,7 @@ void list_of_chats(int end_to_read_from) {
         } else if (n > 0) {
             for (int i = 0; i < n; ++i) {
                 int client_sockfd = vec_of_events[i].data.fd;
-                while (read_request_from_client(&received, client_sockfd) > 0) {
+                if (read_request_from_client(&received, client_sockfd) > 0) {
                     switch(received.request){
                         case c_disconnect:
                         write(disco_pipe[1], &client_sockfd, sizeof(int));
@@ -153,6 +153,7 @@ void list_of_chats(int end_to_read_from) {
                             { // if ok -> add the chat to the list of available ones
                                 resp.responce = s_success;
                                 chats[received.message_text] = {};
+                                send_available_chats(new_socket);
                             }
                             break;
                         case c_connect_chat:
@@ -227,7 +228,7 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
                     continue;
                 }
                 if(used_usernames.count(received.message_text) == 0) {
-                    // user_data[client_sockfd] = received.message_text;
+                    user_data[client_sockfd] = received.message_text;
                     used_usernames.insert(received.message_text);
                     resp.responce = s_success;
                     write(end_to_write_to, &client_sockfd, sizeof(int));

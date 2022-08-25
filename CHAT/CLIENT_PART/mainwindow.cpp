@@ -5,7 +5,8 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QDebug>
-#include <sstream>
+#include <QHeaderView>
+#include <QStandardItem>
 #include "client_interface.h"
 
 MainWindow::MainWindow(QWidget *parent)
@@ -22,6 +23,7 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::StartConnection(){
     socket->connectToHost("127.0.0.1", 5000);
+    socket->setReadBufferSize(10000);
     if(socket->waitForConnected(3000)){
         qDebug() << "Connected!";
     }
@@ -33,32 +35,28 @@ void MainWindow::StartConnection(){
 
 void MainWindow::GetAvailableChats(){
     //deleting start ui
-    QLayoutItem *wItem;
-    while ((wItem = ui->verticalLayout->layout()->takeAt(0)) != 0) {
-        delete wItem->widget();
-        delete wItem;
-    }
+    SafeCleaning(ui->verticalLayout->layout());
     //creating mid ui
     QLineEdit* NewChatLine = new QLineEdit();
     connect(NewChatLine, &QLineEdit::returnPressed, this, &MainWindow::on_createChat);
     ui->verticalLayout->insertWidget(0, NewChatLine);
     QTableView* ChatsTable = new QTableView;
-    ChatsTable->setModel(new QStandardItemModel(0, 1, this));
-    //need to get chats' names
-    ReadFromServer(socket, s_message);
-    if(s_message->responce == s_success){
-        std::stringstream sstream(s_message->message_text);
-        std::string tmp;
-        for(size_t row = 1; !sstream.eof(); ++row){
-            QPushButton* chat = new QPushButton;
-            std::getline(sstream, tmp);
-            connect(chat, &QPushButton::clicked, this, &MainWindow::on_ChatButton_Clicked);
-            ChatsTable->setIndexWidget(ChatsTable->model()->index(row, 1), chat);
-        }
+    QStringList chats = QString::fromStdString(s_message->message_text).split("\n");
+    auto model = new QStandardItemModel(chats.length(), 1);
+    ChatsTable->setModel(model);
+//    ChatsTable->setRootIndex(model->index(0, 0));
+    std::string tmp;
+    for(size_t row = 0; row < chats.length(); ++row){
+        auto chat = new QPushButton();
+        chat->setText(chats.at(row));
+        ChatsTable->setIndexWidget(model->index(row, 0), chat);
+        connect(chat, &QPushButton::clicked, this, &MainWindow::on_ChatButton_Clicked);
     }
-    //if(s_message->responce == s_failure) oh fuck
+//    ChatsTable->setModel(model);
+    ChatsTable->horizontalHeader()->hide();
+    ChatsTable->verticalHeader()->hide();
     ui->verticalLayout->insertWidget(1, ChatsTable);
-
+    ChatsTable->show();
 }
 
 MainWindow::~MainWindow()
@@ -82,7 +80,13 @@ void MainWindow::on_NameLine_returnPressed()
             QMessageBox::warning(this, "ACHTUNG!","This name is already used!");
         }
         else{
-            GetAvailableChats();
+            ReadFromServer(socket, s_message);
+            if(s_message->responce == s_failure){
+                QMessageBox::warning(this, "ACHTUNG!", "Could not create this chat");
+            }
+            else{
+                GetAvailableChats();
+            }
         }
     }
 }
@@ -95,11 +99,7 @@ void MainWindow::on_ChatButton_Clicked(){
     ReadFromServer(socket, s_message);
     if(s_message->responce == s_success){
         //chat forming
-       QLayoutItem *wItem;
-        while ((wItem = ui->verticalLayout->layout()->takeAt(0)) != 0) {
-            delete wItem->widget();
-            delete wItem;
-        }
+        SafeCleaning(ui->verticalLayout->layout());
         QListWidget* QLW = new QListWidget();
         ui->verticalLayout->insertWidget(0, QLW);
         CRH->startThread();

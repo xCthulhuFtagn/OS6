@@ -33,40 +33,33 @@ void server_ending(){
     #endif
 }
 
+// int recv_part_of_request(void* object, size_t length, int sockfd){
+//     size_t off = 0;
+//     int err;
+//     while (recv(sockfd, object + off, length - off, 0)) {
+//         if (errno == EAGAIN) continue;
+//         if (err == -1) return -1;
+//         off += err;
+//     }
+//     return 0;
+// }
+
 int read_request_from_client(client_data_t* received, int sockfd){
-    size_t length, off;
+    size_t length;
     int err;
     #if DEBUG_TRACE
         printf("%D :- read_request_from_client()\n", getpid());
     #endif
-    err = 0, off = 0;
-    do {
-        off += err;
-        err = recv(sockfd, (void*)(received->request) + off, sizeof(client_request_e) - off, MSG_DONTWAIT);
-    } while (errno == 0 && off != sizeof(size_t));
-    if (errno != 0 && errno != EAGAIN)
+    err = recv(sockfd, (void*)(&(received->request)), sizeof(client_request_e), MSG_WAITALL);
+    if (err != sizeof(client_request_e))
         return -1;
-    if (errno == EAGAIN)
-        return -EAGAIN;
-    err = 0, off = 0;
-    do {
-        off += err;
-        err = recv(sockfd, (void*)(&length) + off, sizeof(size_t) - off, MSG_DONTWAIT);
-    } while (errno == 0 && off != sizeof(size_t));
-    if (errno != 0 && errno != EAGAIN)
+    err = recv(sockfd, (void*)(&length), sizeof(size_t), MSG_WAITALL);
+    if (err != sizeof(size_t))
         return -1;
-    if (errno == EAGAIN)
-        return -EAGAIN;
     received->message_text.resize(length);
-    err = 0, off = 0;
-    do {
-        off += err;
-        recv(sockfd, (void*)(received->message_text.data()) + off, length - off, MSG_DONTWAIT);
-    } while (errno == 0 && off != sizeof(size_t));
-    if (errno != 0 && errno != EAGAIN)
+    err = recv(sockfd, (void*)(received->message_text.data()), length, MSG_WAITALL);
+    if (err != length)
         return -1;
-    if (errno == EAGAIN)
-        return -EAGAIN;
     return err;
 }
 
@@ -91,7 +84,7 @@ void end_resp_to_client(int sockfd){
     }
 }
 
-void get_available_chats(int sockfd){
+void send_available_chats(int sockfd){
     server_data_t resp;
     resp.responce = s_success;
     for (auto chat : chats){

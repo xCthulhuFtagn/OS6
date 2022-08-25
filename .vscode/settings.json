@@ -54,5 +54,6 @@
         "thread": "cpp",
         "typeinfo": "cpp",
         "shared_mutex": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "${workspaceFolder}/CHAT/SERVER_PART"
 }
