@@ -60,7 +60,8 @@ typedef struct {
 } server_data_t;
 
 typedef struct{
-    int in, out;
+    int in;
+    int out;
 } chat_pipe;
 
 int server_starting();

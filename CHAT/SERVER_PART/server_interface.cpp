@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <sys/socket.h>
 
-std::unordered_map<std::string, std::unordered_set<int>> chats;
+std::unordered_map<std::string, std::pair<std::unordered_set<int>, chat_pipe>> chats;
 std::unordered_map<int, std::string> user_data;
 std::unordered_set<std::string> used_usernames;
 

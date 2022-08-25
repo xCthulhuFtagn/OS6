@@ -92,11 +92,11 @@ void chat_message(int go_in_chat_pipe_input) {
             }
         }
         // TODO : write to file
-        // sending data to all sockets
+        // sending data to all clients
         if (messages_offset.size() != vec_of_events.size())
             vec_of_events.resize(messages_offset.size());
         for (auto&& [fd, off] : messages_offset) {
-            for (; next(off) != all_messages.end(); ++off) {
+            for (; off != all_messages.end(); ++off) {
                 server_data.responce = s_new_message;
                 server_data.message_text = *off;
                 send_resp_to_client(&server_data, fd);
@@ -152,6 +152,7 @@ void list_of_chats(int end_to_read_from) {
                             else
                             { // if ok -> add the chat to the list of available ones
                                 resp.responce = s_success;
+                                resp.message_text = "";
                                 chats[received.message_text] = {};
                                 send_available_chats(new_socket);
                             }
@@ -168,17 +169,15 @@ void list_of_chats(int end_to_read_from) {
                                 if(pipe((int *)&(chats[received.message_text].second)) < 0) {
                                     perror("Could not open pipe to chat");
                                 }
+                                fcntl(chats[received.message_text].second.in, F_SETFL, fcntl(chats[received.message_text].second.in, F_GETFL) | O_NONBLOCK);
                                 std::thread(chat_message, chats[received.message_text].second.in).detach();//auto chat_thread = 
                             }
                             // Adding a subscriber to the chat
                             chats.at(received.message_text).first.insert(client_sockfd);
                             resp.responce = s_success;
-                            // sending status to client
-                            struct stat st;
-                            stat(received.message_text.c_str(), &st);
-                            write(client_sockfd, &st.st_size, sizeof(off_t));
+                            resp.message_text = "";
                             // sending sockfd to chat
-                            write(chats[received.message_text].second.in, &client_sockfd, sizeof(int));
+                            write(chats[received.message_text].second.out, &client_sockfd, sizeof(int));
                             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                             break;
                         default:
@@ -186,6 +185,7 @@ void list_of_chats(int end_to_read_from) {
                             resp.responce = s_failure;
                             resp.message_text =  "WRONG REQUEST";
                     }
+                    send_resp_to_client(&resp, client_sockfd);
                 }
             }
         }
