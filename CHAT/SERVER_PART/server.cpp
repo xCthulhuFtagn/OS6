@@ -56,7 +56,6 @@ void chat_message(int go_in_chat_pipe_input) {
             time(&curr_time);
             curr_tm = localtime(&curr_time);
             strftime(timedate_string, sizeof(timedate_string) - 1, "%T %D\0", curr_tm);
-
             for (off = 0; off < n; ++off) {
                 int err;
                 int fd = vec_of_events[off].data.fd;
