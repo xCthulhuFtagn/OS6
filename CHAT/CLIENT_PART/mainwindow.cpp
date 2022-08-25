@@ -42,7 +42,7 @@ void MainWindow::GetAvailableChats(){
     ui->verticalLayout->insertWidget(0, NewChatLine);
     QTableView* ChatsTable = new QTableView;
     QStringList chats = QString::fromStdString(s_message->message_text).split("\n");
-    auto model = new QStandardItemModel(chats.length(), 1);
+    model = new QStandardItemModel(chats.length(), 1);
     ChatsTable->setModel(model);
 //    ChatsTable->setRootIndex(model->index(0, 0));
     std::string tmp;
@@ -100,13 +100,23 @@ void MainWindow::on_ChatButton_Clicked(){
     if(s_message->responce == s_success){
         //chat forming
         SafeCleaning(ui->verticalLayout->layout());
+        QPushButton* LeaveButton = new QPushButton("Leave chat");
+        connect(LeaveButton, &QPushButton::clicked, this, &MainWindow::on_leaveChat);
         QListWidget* QLW = new QListWidget();
-        ui->verticalLayout->insertWidget(0, QLW);
+        QLineEdit* MessageLine = new QLineEdit();
+        connect(MessageLine, &QLineEdit::returnPressed, this, &MainWindow::on_sendMessage);
+        ui->verticalLayout->insertWidget(0, LeaveButton);
+        ui->verticalLayout->insertWidget(1, QLW);
+        ui->verticalLayout->insertWidget(2, MessageLine);
         CRH->startThread();
     }
     else{
         QMessageBox::warning(this, "ACHTUNG!", "Could not connect to this chat!");
     }
+//    do{
+
+//    }
+//    while(c_message->request == c_send_message);
 }
 
 void MainWindow::on_newMessage(std::string& message_text){
@@ -114,7 +124,7 @@ void MainWindow::on_newMessage(std::string& message_text){
     auto it1 = message_text.find_first_of("\t");
     auto it2 = message_text.find_first_of("\n");
     auto QLW = qobject_cast<QListWidget*>(ui->verticalLayout->itemAt(0)->widget());
-    QLW->insertItem(row++, QString(message_text.c_str()));
+    model->appendRow(new QStandardItem(QString::fromStdString(message_text))); //need to modify the text
 }
 
 void MainWindow::on_createChat(){
@@ -129,4 +139,17 @@ void MainWindow::on_createChat(){
     else{
         GetAvailableChats();
     }
+}
+
+void MainWindow::on_leaveChat(){
+    client_data_t c_message;
+    c_message.request = c_leave_chat;
+    SendToServer(socket, &c_message);
+}
+
+void MainWindow::on_sendMessage(){
+    client_data_t c_message;
+    c_message.message_text = qobject_cast<QLineEdit*>(sender())->text().toStdString();
+    c_message.request = c_send_message;
+    SendToServer(socket, &c_message);
 }

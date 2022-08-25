@@ -1,6 +1,6 @@
 #include "chatroutine.h"
 #include "client_interface.h"
-//#include <QDebug>
+#include <QDebug>
 
 ChatRoutine::ChatRoutine(QTcpSocket* socket) {
     tcp_socket = socket;
@@ -17,7 +17,8 @@ void ChatRoutine::process() {
             case s_new_message:
                 emit new_message_come(s_message->message_text);
                 break;
-//            default:
+            default:
+                qDebug() << "Chat routine received wrong data";
                 //wrong message
         }
     }
