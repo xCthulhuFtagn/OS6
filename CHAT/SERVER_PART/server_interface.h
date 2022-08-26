@@ -34,6 +34,8 @@
 #include <algorithm>
 #include <list>
 
+#define TIMEOUT_MICRO 1000
+
 typedef enum {
     c_set_name = 0,
     c_create_chat,

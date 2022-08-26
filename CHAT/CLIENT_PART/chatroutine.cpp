@@ -1,5 +1,6 @@
 #include "chatroutine.h"
 #include "client_interface.h"
+#include "mainwindow.h"
 #include <QDebug>
 
 ChatRoutine::ChatRoutine(QTcpSocket* socket) {
@@ -40,7 +41,7 @@ void ChatRoutineHandler::startThread(){
     ChatRoutine* chat_proc = new ChatRoutine(tcp_socket);
     QThread* thread = new QThread;
     chat_proc->moveToThread(thread);
-    connect(chat_proc, SIGNAL(new_message_come()), parent(), SLOT(on_newMessage()));
+    connect(chat_proc, &ChatRoutine::new_message_come, qobject_cast<MainWindow*>(parent()), &MainWindow::on_newMessage);
     connect(thread, SIGNAL(started()), chat_proc, SLOT(process()));
     connect(chat_proc, SIGNAL(finished()), thread, SLOT(quit()));
     connect(this, SIGNAL(stop()), chat_proc, SLOT(stop()));

@@ -19,11 +19,12 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-// public slots:
+public slots:
+    void on_newMessage(std::string&);
+
 private slots:
     void on_NameLine_returnPressed();
     void on_ChatButton_Clicked();
-    void on_newMessage(std::string&);
     void on_createChat();
     void on_leaveChat();
     void on_sendMessage();

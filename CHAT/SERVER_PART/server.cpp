@@ -13,7 +13,7 @@ void catch_signals()
 }
 
 void chat_message(int go_in_chat_pipe_input) {
-    std::list<std::string> all_messages;
+    std::list<std::string> all_messages = { "" };
     std::string message;
     client_data_t client_data;
     server_data_t server_data;
@@ -74,6 +74,7 @@ void chat_message(int go_in_chat_pipe_input) {
                             messages_offset.erase(fd);
                             break;
                         case c_send_message:
+                            message.clear();
                             message.append(user_data[fd]);
                             message.push_back('\t');
                             message.append(timedate_string);
@@ -95,7 +96,12 @@ void chat_message(int go_in_chat_pipe_input) {
         if (messages_offset.size() != vec_of_events.size())
             vec_of_events.resize(messages_offset.size());
         for (auto&& [fd, off] : messages_offset) {
-            for (; off != all_messages.end(); ++off) {
+            while (true) {
+                ++off;
+                if (off == all_messages.end()) {
+                    --off;
+                    break;
+                }
                 server_data.responce = s_new_message;
                 server_data.message_text = *off;
                 send_resp_to_client(&server_data, fd);
@@ -325,6 +331,10 @@ int main(int argc, char *argv[])
     int connection_socket;
     while ((connection_socket = accept(listen_socket, (struct sockaddr *)&client_address, &address_length)) != -1)
     {
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = TIMEOUT_MICRO;
+        setsockopt(connection_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
         write(username_enter_pipe[1], &connection_socket, sizeof(int));
     }
     if (!(errno & (EAGAIN | EWOULDBLOCK)))

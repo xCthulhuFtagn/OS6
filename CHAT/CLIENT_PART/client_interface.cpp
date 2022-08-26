@@ -15,9 +15,9 @@ bool SendToServer(QTcpSocket* socket, client_data_t* c_d){
 int BlockedRead(char* object, size_t length, QTcpSocket* socket) {
     ssize_t err;
     size_t off = 0;
-    socket->waitForReadyRead(100);
     while ((err = socket->read(object + off, length - off)) >= 0) {
         if (off == length) return 0;
+        socket->waitForReadyRead(100);
         off += err;
     }
     return err;
