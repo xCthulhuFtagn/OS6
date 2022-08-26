@@ -52,14 +52,14 @@ int read_request_from_client(client_data_t* received, int sockfd){
     #endif
     err = recv(sockfd, (void*)(&(received->request)), sizeof(client_request_e), MSG_WAITALL);
     if (err != sizeof(client_request_e))
-        return -1;
+        return err;
     err = recv(sockfd, (void*)(&length), sizeof(size_t), MSG_WAITALL);
     if (err != sizeof(size_t))
-        return -1;
+        return err;
     received->message_text.resize(length);
     err = recv(sockfd, (void*)(received->message_text.data()), length, MSG_WAITALL);
     if (err != length)
-        return -1;
+        return err;
     return err;
 }
 

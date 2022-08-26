@@ -42,19 +42,18 @@ void MainWindow::GetAvailableChats(){
     ui->verticalLayout->insertWidget(0, NewChatLine);
     QTableView* ChatsTable = new QTableView;
     QStringList chats = QString::fromStdString(s_message->message_text).split("\n");
-    model = new QStandardItemModel(chats.length(), 1);
+    model = new QStandardItemModel(chats.length() - 1, 1);
     ChatsTable->setModel(model);
-//    ChatsTable->setRootIndex(model->index(0, 0));
     std::string tmp;
-    for(size_t row = 0; row < chats.length(); ++row){
+    for(size_t row = 0; row < chats.length() - 1; ++row){
         auto chat = new QPushButton();
         chat->setText(chats.at(row));
         ChatsTable->setIndexWidget(model->index(row, 0), chat);
         connect(chat, &QPushButton::clicked, this, &MainWindow::on_ChatButton_Clicked);
     }
-//    ChatsTable->setModel(model);
     ChatsTable->horizontalHeader()->hide();
     ChatsTable->verticalHeader()->hide();
+    ChatsTable->horizontalHeader()->setStretchLastSection(true); //try to fill the whole widget
     ui->verticalLayout->insertWidget(1, ChatsTable);
     ChatsTable->show();
 }
@@ -113,18 +112,12 @@ void MainWindow::on_ChatButton_Clicked(){
     else{
         QMessageBox::warning(this, "ACHTUNG!", "Could not connect to this chat!");
     }
-//    do{
-
-//    }
-//    while(c_message->request == c_send_message);
 }
 
 void MainWindow::on_newMessage(std::string& message_text){
     static size_t row = 0;
-    auto it1 = message_text.find_first_of("\t");
-    auto it2 = message_text.find_first_of("\n");
-    auto QLW = qobject_cast<QListWidget*>(ui->verticalLayout->itemAt(0)->widget());
-    model->appendRow(new QStandardItem(QString::fromStdString(message_text))); //need to modify the text
+    auto QLW = qobject_cast<QListWidget*>(ui->verticalLayout->itemAt(1)->widget());
+    QLW->addItem(QString::fromStdString(message_text)); //need to modify the text
 }
 
 void MainWindow::on_createChat(){

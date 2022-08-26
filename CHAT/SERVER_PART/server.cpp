@@ -87,8 +87,11 @@ void chat_message(int go_in_chat_pipe_input) {
                             break;
                     }
                 }
-                if (err == 0)
+                if (err == 0) {
+                    epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
                     write(disco_pipe[1], &fd, sizeof(int));
+                    messages_offset.erase(fd);
+                }
             }
         }
         // TODO : write to file
@@ -140,24 +143,23 @@ void list_of_chats(int end_to_read_from) {
             return;
         } else if (n > 0) {
             for (int i = 0; i < n; ++i) {
-                int client_sockfd = vec_of_events[i].data.fd;
-                if (read_request_from_client(&received, client_sockfd) > 0) {
+                int client_sockfd = vec_of_events[i].data.fd, err;
+                if (err = read_request_from_client(&received, client_sockfd) > 0) {
                     switch(received.request){
                         case c_disconnect:
-                        write(disco_pipe[1], &client_sockfd, sizeof(int));
-                        epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
-                        break;
+                            write(disco_pipe[1], &client_sockfd, sizeof(int));
+                            epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                            break;
                         case c_create_chat:
                             creat(received.message_text.c_str(), S_IRWXG | S_IRWXO | S_IRWXU);
                             if (errno == EEXIST)
                             {
                                 resp.responce = s_failure;
                                 resp.message_text = "Chat with such name already exists";
+                                send_resp_to_client(&resp, client_sockfd);
                             }
                             else
-                            { // if ok -> add the chat to the list of available ones
-                                resp.responce = s_success;
-                                resp.message_text = "";
+                            { // if ok -> add the chat to the list of available ones + send list of them
                                 chats[received.message_text] = {};
                                 send_available_chats(new_socket);
                             }
@@ -181,16 +183,20 @@ void list_of_chats(int end_to_read_from) {
                             chats.at(received.message_text).first.insert(client_sockfd);
                             resp.responce = s_success;
                             resp.message_text = "";
-                            // sending sockfd to chat
                             write(chats[received.message_text].second.out, &client_sockfd, sizeof(int));
                             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                            send_resp_to_client(&resp, client_sockfd);
                             break;
                         default:
                             fprintf(stderr, "Wrong request from client : %d\n", received.request);
                             resp.responce = s_failure;
                             resp.message_text =  "WRONG REQUEST";
+                            send_resp_to_client(&resp, client_sockfd);
                     }
-                    send_resp_to_client(&resp, client_sockfd);
+                }
+                if (err == 0) {
+                    epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                    write(disco_pipe[1], &client_sockfd, sizeof(int));
                 }
             }
         }
@@ -226,8 +232,8 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
             for (int i = 0; i < n; ++i) {
                 int client_sockfd = vec_of_events[i].data.fd;
                 resp.responce = s_failure;
-                read_request_from_client(&received, client_sockfd);
-                if(received.request == c_disconnect){
+                int err = read_request_from_client(&received, client_sockfd);
+                if(received.request == c_disconnect || err == 0){
                     write(disco_pipe[1], &client_sockfd, sizeof(int));
                     epoll_ctl(no_name_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                     continue;
