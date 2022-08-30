@@ -19,16 +19,22 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-// public slots:
+public slots:
+    void on_newMessage(std::string&);
+    void on_leaveChat2nd(server_data_t);
+
 private slots:
     void on_NameLine_returnPressed();
     void on_ChatButton_Clicked();
-    void on_newMessage(std::string&);
+    void on_createChat();
+    void on_leaveChat1st();
+    void on_sendMessage();
 
 private:
     Ui::MainWindow *ui;
     QTcpSocket *socket;
     ChatRoutineHandler* CRH;
+    QStandardItemModel* model;
     void GetAvailableChats();
     void StartConnection();
     client_data_t* c_message;

@@ -12,17 +12,36 @@ bool SendToServer(QTcpSocket* socket, client_data_t* c_d){
     return true;
 }
 
+int BlockedRead(char* object, size_t length, QTcpSocket* socket) {
+    ssize_t err;
+    size_t off = 0;
+    socket->waitForReadyRead(10);
+    while ((err = socket->read(object + off, length - off)) >= 0) {
+        if (off == length) return 0;
+        socket->waitForReadyRead(10);
+        off += err;
+    }
+    return err;
+}
+
 bool ReadFromServer(QTcpSocket* socket, server_data_t* s_d){
-    socket->waitForReadyRead();
-    int received = socket->read((char*)&s_d->responce, sizeof(server_responce_e));
+    int received = BlockedRead((char*)&s_d->responce, sizeof(server_responce_e), socket);
     if (received < 0) return false;
     size_t length;
-    socket->waitForReadyRead();
-    received = socket->read((char*)&length, sizeof(size_t));
+    received = BlockedRead((char*)&length, sizeof(size_t), socket);
     if (received < 0) return false;
     s_d->message_text.resize(length);
-    if(length > 0) socket->waitForReadyRead();
-    received = socket->read((char*)s_d->message_text.data(), length);
+    received = BlockedRead((char*)s_d->message_text.data(), length, socket);
     if (received < 0) return false;
     return true;
+}
+
+void SafeCleaning(QLayout* layout) {
+    QLayoutItem *wItem;
+    while ((wItem = layout->takeAt(0)) != 0) {
+//        wItem->widget()->disconnect();
+        wItem->widget()->deleteLater();
+//        delete wItem->widget();
+        delete wItem;
+    }
 }

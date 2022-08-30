@@ -13,7 +13,7 @@ void catch_signals()
 }
 
 void chat_message(int go_in_chat_pipe_input) {
-    std::list<std::string> all_messages;
+    std::list<std::string> all_messages = { "" };
     std::string message;
     client_data_t client_data;
     server_data_t server_data;
@@ -34,7 +34,7 @@ void chat_message(int go_in_chat_pipe_input) {
     size_t off = 0;
 
     while (true) {
-        // changing vector of events
+        // changing hashmap of events
         int read_bytes;
         while ((read_bytes = read(go_in_chat_pipe_input, (void*)(&ev.data.fd), sizeof(int))) > 0) {
             vec_of_events.push_back(ev);
@@ -56,7 +56,6 @@ void chat_message(int go_in_chat_pipe_input) {
             time(&curr_time);
             curr_tm = localtime(&curr_time);
             strftime(timedate_string, sizeof(timedate_string) - 1, "%T %D\0", curr_tm);
-
             for (off = 0; off < n; ++off) {
                 int err;
                 int fd = vec_of_events[off].data.fd;
@@ -75,6 +74,7 @@ void chat_message(int go_in_chat_pipe_input) {
                             messages_offset.erase(fd);
                             break;
                         case c_send_message:
+                            message.clear();
                             message.append(user_data[fd]);
                             message.push_back('\t');
                             message.append(timedate_string);
@@ -87,16 +87,24 @@ void chat_message(int go_in_chat_pipe_input) {
                             break;
                     }
                 }
-                if (err == 0)
+                if (err == 0) {
+                    epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
                     write(disco_pipe[1], &fd, sizeof(int));
+                    messages_offset.erase(fd);
+                }
             }
         }
         // TODO : write to file
-        // sending data to all sockets
+        // sending data to all clients
         if (messages_offset.size() != vec_of_events.size())
             vec_of_events.resize(messages_offset.size());
         for (auto&& [fd, off] : messages_offset) {
-            for (; next(off) != all_messages.end(); ++off) {
+            while (true) {
+                ++off;
+                if (off == all_messages.end()) {
+                    --off;
+                    break;
+                }
                 server_data.responce = s_new_message;
                 server_data.message_text = *off;
                 send_resp_to_client(&server_data, fd);
@@ -124,7 +132,7 @@ void list_of_chats(int end_to_read_from) {
             ev.data.fd = new_socket;
             vec_of_events.push_back(ev);
             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
-            get_available_chats(new_socket);
+            send_available_chats(new_socket);
         }
         if(bytes < 0 && errno != EAGAIN && errno != EINTR){
             perror("List of chats pipe error");
@@ -135,24 +143,25 @@ void list_of_chats(int end_to_read_from) {
             return;
         } else if (n > 0) {
             for (int i = 0; i < n; ++i) {
-                int client_sockfd = vec_of_events[i].data.fd;
-                while (read_request_from_client(&received, client_sockfd) > 0) {
+                int client_sockfd = vec_of_events[i].data.fd, err;
+                if (err = read_request_from_client(&received, client_sockfd) > 0) {
                     switch(received.request){
                         case c_disconnect:
-                        write(disco_pipe[1], &client_sockfd, sizeof(int));
-                        epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
-                        break;
+                            write(disco_pipe[1], &client_sockfd, sizeof(int));
+                            epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                            break;
                         case c_create_chat:
                             creat(received.message_text.c_str(), S_IRWXG | S_IRWXO | S_IRWXU);
                             if (errno == EEXIST)
                             {
                                 resp.responce = s_failure;
                                 resp.message_text = "Chat with such name already exists";
+                                send_resp_to_client(&resp, client_sockfd);
                             }
                             else
-                            { // if ok -> add the chat to the list of available ones
-                                resp.responce = s_success;
+                            { // if ok -> add the chat to the list of available ones + send list of them
                                 chats[received.message_text] = {};
+                                send_available_chats(new_socket);
                             }
                             break;
                         case c_connect_chat:
@@ -167,24 +176,27 @@ void list_of_chats(int end_to_read_from) {
                                 if(pipe((int *)&(chats[received.message_text].second)) < 0) {
                                     perror("Could not open pipe to chat");
                                 }
+                                fcntl(chats[received.message_text].second.in, F_SETFL, fcntl(chats[received.message_text].second.in, F_GETFL) | O_NONBLOCK);
                                 std::thread(chat_message, chats[received.message_text].second.in).detach();//auto chat_thread = 
                             }
                             // Adding a subscriber to the chat
                             chats.at(received.message_text).first.insert(client_sockfd);
                             resp.responce = s_success;
-                            // sending status to client
-                            struct stat st;
-                            stat(received.message_text.c_str(), &st);
-                            write(client_sockfd, &st.st_size, sizeof(off_t));
-                            // sending sockfd to chat
-                            write(chats[received.message_text].second.in, &client_sockfd, sizeof(int));
+                            resp.message_text = "";
+                            write(chats[received.message_text].second.out, &client_sockfd, sizeof(int));
                             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                            send_resp_to_client(&resp, client_sockfd);
                             break;
                         default:
                             fprintf(stderr, "Wrong request from client : %d\n", received.request);
                             resp.responce = s_failure;
                             resp.message_text =  "WRONG REQUEST";
+                            send_resp_to_client(&resp, client_sockfd);
                     }
+                }
+                if (err == 0) {
+                    epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                    write(disco_pipe[1], &client_sockfd, sizeof(int));
                 }
             }
         }
@@ -220,14 +232,14 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
             for (int i = 0; i < n; ++i) {
                 int client_sockfd = vec_of_events[i].data.fd;
                 resp.responce = s_failure;
-                read_request_from_client(&received, client_sockfd);
-                if(received.request == c_disconnect){
+                int err = read_request_from_client(&received, client_sockfd);
+                if(received.request == c_disconnect || err == 0){
                     write(disco_pipe[1], &client_sockfd, sizeof(int));
                     epoll_ctl(no_name_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                     continue;
                 }
                 if(used_usernames.count(received.message_text) == 0) {
-                    // user_data[client_sockfd] = received.message_text;
+                    user_data[client_sockfd] = received.message_text;
                     used_usernames.insert(received.message_text);
                     resp.responce = s_success;
                     write(end_to_write_to, &client_sockfd, sizeof(int));
@@ -325,6 +337,10 @@ int main(int argc, char *argv[])
     int connection_socket;
     while ((connection_socket = accept(listen_socket, (struct sockaddr *)&client_address, &address_length)) != -1)
     {
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = TIMEOUT_MICRO;
+        setsockopt(connection_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
         write(username_enter_pipe[1], &connection_socket, sizeof(int));
     }
     if (!(errno & (EAGAIN | EWOULDBLOCK)))

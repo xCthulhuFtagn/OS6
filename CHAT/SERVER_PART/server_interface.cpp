@@ -3,15 +3,9 @@
 #include <filesystem>
 #include <sys/socket.h>
 
-std::unordered_map<std::string, std::unordered_set<int>> chats;
+std::unordered_map<std::string, std::pair<std::unordered_set<int>, chat_pipe>> chats;
 std::unordered_map<int, std::string> user_data;
 std::unordered_set<std::string> used_usernames;
-
-static int server_fd = -1;
-static pid_t my_pid = 0;
-static char client_pipe_name[PATH_MAX + 1] = {'\0'};
-static int client_fd = -1;
-static int client_write_fd = -1;
 
 int server_starting(){
     namespace fs = std::filesystem;
@@ -33,41 +27,34 @@ void server_ending(){
     #endif
 }
 
+// int recv_part_of_request(void* object, size_t length, int sockfd){
+//     size_t off = 0;
+//     int err;
+//     while (recv(sockfd, object + off, length - off, 0)) {
+//         if (errno == EAGAIN) continue;
+//         if (err == -1) return -1;
+//         off += err;
+//     }
+//     return 0;
+// }
+
 int read_request_from_client(client_data_t* received, int sockfd){
-    size_t length, off;
+    size_t length;
     int err;
     #if DEBUG_TRACE
         printf("%D :- read_request_from_client()\n", getpid());
     #endif
-    err = 0, off = 0;
-    do {
-        off += err;
-        err = recv(sockfd, (void*)(received->request) + off, sizeof(client_request_e) - off, MSG_DONTWAIT);
-    } while (errno == 0 && off != sizeof(size_t));
-    if (errno != 0 && errno != EAGAIN)
-        return -1;
-    if (errno == EAGAIN)
-        return -EAGAIN;
-    err = 0, off = 0;
-    do {
-        off += err;
-        err = recv(sockfd, (void*)(&length) + off, sizeof(size_t) - off, MSG_DONTWAIT);
-    } while (errno == 0 && off != sizeof(size_t));
-    if (errno != 0 && errno != EAGAIN)
-        return -1;
-    if (errno == EAGAIN)
-        return -EAGAIN;
+    err = recv(sockfd, (void*)(&(received->request)), sizeof(client_request_e), MSG_WAITALL);
+    if (err != sizeof(client_request_e))
+        return err;
+    err = recv(sockfd, (void*)(&length), sizeof(size_t), MSG_WAITALL);
+    if (err != sizeof(size_t))
+        return err;
     received->message_text.resize(length);
-    err = 0, off = 0;
-    do {
-        off += err;
-        recv(sockfd, (void*)(received->message_text.data()) + off, length - off, MSG_DONTWAIT);
-    } while (errno == 0 && off != sizeof(size_t));
-    if (errno != 0 && errno != EAGAIN)
-        return -1;
-    if (errno == EAGAIN)
-        return -EAGAIN;
-    return err;
+    err = recv(sockfd, (void*)(received->message_text.data()), length, MSG_WAITALL);
+    if (err != length)
+        return err;
+    return length + 1;
 }
 
 void send_resp_to_client(const server_data_t* resp, int sockfd){
@@ -91,7 +78,7 @@ void end_resp_to_client(int sockfd){
     }
 }
 
-void get_available_chats(int sockfd){
+void send_available_chats(int sockfd){
     server_data_t resp;
     resp.responce = s_success;
     for (auto chat : chats){

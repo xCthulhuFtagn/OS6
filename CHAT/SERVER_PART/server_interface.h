@@ -34,6 +34,8 @@
 #include <algorithm>
 #include <list>
 
+#define TIMEOUT_MICRO 1000
+
 typedef enum {
     c_set_name = 0,
     c_create_chat,
@@ -60,12 +62,13 @@ typedef struct {
 } server_data_t;
 
 typedef struct{
-    int in, out;
+    int in;
+    int out;
 } chat_pipe;
 
 int server_starting();
 void server_ending();
 int read_request_from_client(client_data_t* received, int sockfd);
 void send_resp_to_client(const server_data_t* resp, int sockfd);
-void get_available_chats(int sockfd);
+void send_available_chats(int sockfd);
 void end_resp_to_client(int sockfd);

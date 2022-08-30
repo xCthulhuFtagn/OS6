@@ -2,11 +2,13 @@
 #define CLIENT_INTERFACE_H
 #include <string>
 #include <QTcpSocket>
+#include <QLayout>
+#include <QWidget>
 #define MAX_CHAT_NAME_LEN 32
 #define MAX_NAME_LEN 32
 
 typedef enum {
-    c_get_available_chats = 0,
+    c_set_name = 0,
     c_create_chat,
     c_connect_chat,
     c_send_message,
@@ -33,6 +35,6 @@ typedef struct {
 bool SendToServer(QTcpSocket*, client_data_t*);
 bool ReadFromServer(QTcpSocket*, server_data_t*);
 
-
+void SafeCleaning(QLayout*);
 
 #endif // CLIENT_INTERFACE_H
