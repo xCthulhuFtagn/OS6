@@ -53,6 +53,13 @@
         "streambuf": "cpp",
         "thread": "cpp",
         "typeinfo": "cpp",
-        "shared_mutex": "cpp"
-    }
+        "shared_mutex": "cpp",
+        "codecvt": "cpp",
+        "list": "cpp",
+        "fstream": "cpp",
+        "iomanip": "cpp",
+        "istream": "cpp",
+        "sstream": "cpp"
+    },
+    "cmake.sourceDirectory": "${workspaceFolder}/CHAT/SERVER_PART"
 }
