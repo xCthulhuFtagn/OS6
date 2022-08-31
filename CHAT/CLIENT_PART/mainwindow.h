@@ -35,7 +35,6 @@ private:
     QTcpSocket *socket;
     ChatRoutineHandler* CRH;
     QStandardItemModel* model;
-    QStandardItemModel* model;
     void GetAvailableChats();
     void StartConnection();
     client_data_t* c_message;

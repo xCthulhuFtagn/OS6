@@ -24,7 +24,6 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::StartConnection(){
     socket->connectToHost("127.0.0.1", 5000);
     socket->setReadBufferSize(10000);
-    socket->setReadBufferSize(10000);
     if(socket->waitForConnected(3000)){
         qDebug() << "Connected!";
     }

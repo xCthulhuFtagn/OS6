@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <sys/socket.h>
 
-std::unordered_map<std::string, std::pair<std::pair<std::unordered_set<int>, chat_pipe>, chat_pipe>> chats;
+std::unordered_map<std::string, std::pair<std::unordered_set<int>, chat_pipe>> chats;
 std::unordered_map<int, std::string> user_data;
 std::unordered_set<std::string> used_usernames;
 
@@ -38,17 +38,6 @@ void server_ending(){
 //     return 0;
 // }
 
-// int recv_part_of_request(void* object, size_t length, int sockfd){
-//     size_t off = 0;
-//     int err;
-//     while (recv(sockfd, object + off, length - off, 0)) {
-//         if (errno == EAGAIN) continue;
-//         if (err == -1) return -1;
-//         off += err;
-//     }
-//     return 0;
-// }
-
 int read_request_from_client(client_data_t* received, int sockfd){
     size_t length;
     int err;
@@ -65,7 +54,7 @@ int read_request_from_client(client_data_t* received, int sockfd){
     err = recv(sockfd, (void*)(received->message_text.data()), length, MSG_WAITALL);
     if (err != length)
         return err;
-    return err;
+    return length + 1;
 }
 
 void send_resp_to_client(const server_data_t* resp, int sockfd){
