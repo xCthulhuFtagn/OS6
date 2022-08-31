@@ -152,6 +152,7 @@ void MainWindow::on_leaveChat1st(){
     c_message.request = c_leave_chat;
     c_message.message_text = "";
     SendToServer(socket, &c_message);
+    qDebug() << "on_leaveChat1st finished";
 }
 
 void MainWindow::on_leaveChat2nd(server_data_t s_message){
