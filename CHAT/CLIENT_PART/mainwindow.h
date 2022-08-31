@@ -37,7 +37,7 @@ private:
     QStandardItemModel* model;
     void GetAvailableChats();
     void StartConnection();
-    client_data_t* c_message;
-    server_data_t* s_message;
+    server_data_t s_message;
+    client_data_t c_message;
 };
 #endif // MAINWINDOW_H

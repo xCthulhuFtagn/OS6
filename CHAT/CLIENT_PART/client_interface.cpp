@@ -40,8 +40,7 @@ void SafeCleaning(QLayout* layout) {
     QLayoutItem *wItem;
     while ((wItem = layout->takeAt(0)) != 0) {
 //        wItem->widget()->disconnect();
-        wItem->widget()->deleteLater();
-//        delete wItem->widget();
+        if(wItem->widget()) wItem->widget()->deleteLater();
         delete wItem;
     }
 }
