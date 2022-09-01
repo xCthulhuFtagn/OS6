@@ -39,7 +39,6 @@ bool ReadFromServer(QTcpSocket* socket, server_data_t* s_d){
 void SafeCleaning(QLayout* layout) {
     QLayoutItem *wItem;
     while ((wItem = layout->takeAt(0)) != 0) {
-//        wItem->widget()->disconnect();
         if(wItem->widget()) wItem->widget()->deleteLater();
         delete wItem;
     }

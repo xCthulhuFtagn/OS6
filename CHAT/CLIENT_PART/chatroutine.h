@@ -16,7 +16,7 @@ class ChatRoutine : public QObject {
         MESSAGE
     };
 
-    std::atomic_bool go_on;
+    server_data_t s_d;
     QTcpSocket* tcp_socket;
 
     size_t off = 0;
@@ -24,12 +24,13 @@ class ChatRoutine : public QObject {
     size_t length;
     bool readed = false;
 
-    bool UnblockedReadFromServer(server_data_t*);
 public:
+    std::atomic_bool go_on;
     ChatRoutine(QTcpSocket*);
 
 public slots:
-	void process(); 	/*  создает и запускает */
+    bool UnblockedReadFromServer();
+//	void process(); 	/*  создает и запускает */
     void stop();    	/*  останавливает */
 
 signals:

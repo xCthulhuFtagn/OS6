@@ -62,9 +62,14 @@ void MainWindow::GetAvailableChats(){
     ChatsTable->show();
 }
 
+//MainWindow::closeEvent() {
+//    //
+//}
+
 MainWindow::~MainWindow()
 {
     delete ui;
+    CRH->stopThread();
     delete CRH;
 }
 
