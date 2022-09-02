@@ -15,7 +15,7 @@ int server_starting(){
     fs::path path_of_chats(".");
     for (const auto& entry : fs::directory_iterator(path_of_chats)) {
         if (entry.is_regular_file() && fs::path(entry).extension() == ".chat") {
-            chats[fs::path(entry).filename()] = {};
+            chats[fs::path(entry).stem()] = {};
         }
     }
     return 1;

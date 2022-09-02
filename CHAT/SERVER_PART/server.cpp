@@ -12,25 +12,28 @@ void catch_signals()
     server_running = 0;
 }
 
-void chat_message(int go_in_chat_pipe_input) {
-    std::list<std::string> all_messages = { "" };
-    std::string message;
+void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
     client_data_t client_data;
     server_data_t server_data;
 
-    int chat_epoll_fd = epoll_create1(0);
+    int chat_epoll_fd = epoll_create1(0), chatfd;
     if (chat_epoll_fd < 0) {
         perror("epoll create");
         return;
     }
+    std::fstream chat_file(chat_name + ".chat");
+    if (!chat_file) {
+        perror("chat file");
+        return;
+    }
     std::vector<epoll_event> vec_of_events;
-    std::unordered_map<int, std::list<std::string>::iterator> messages_offset;
+    std::unordered_map<int, std::streampos> messages_offset;
     epoll_event ev;
     ev.events = EPOLLEXCLUSIVE | EPOLLIN | EPOLLET;
 
     time_t curr_time;
 	tm * curr_tm;
-    char timedate_string[100];
+    char timedate_string[100] = { 0 };
     size_t off = 0;
 
     while (true) {
@@ -38,12 +41,20 @@ void chat_message(int go_in_chat_pipe_input) {
         int read_bytes;
         while ((read_bytes = read(go_in_chat_pipe_input, (void*)(&ev.data.fd), sizeof(int))) > 0) {
             vec_of_events.push_back(ev);
-            messages_offset[ev.data.fd] = all_messages.begin();
+            messages_offset[ev.data.fd] = 0;
             epoll_ctl(chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
+        }
+        if (read_bytes == 0) {
+            fprintf(stderr, "Closing routine for chat: %s\n", chat_name.c_str());
+            close(go_in_chat_pipe_input);
+            close(chat_epoll_fd);
+            chat_file.close();
+            return;
         }
         if (read_bytes < 0 && errno != EAGAIN && errno != EINTR) {
             perror("pipe");
             close(chat_epoll_fd);
+            chat_file.close();
             return;
         }
         // wait for messages
@@ -67,20 +78,18 @@ void chat_message(int go_in_chat_pipe_input) {
                             write(list_chats_pipe[1], &fd, sizeof(int));
                             epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
                             messages_offset.erase(fd);
+                            chats[chat_name].first.erase(fd); //unsubscribing
                             break;
                         case c_disconnect:
                             write(disco_pipe[1], &fd, sizeof(int));
                             epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
                             messages_offset.erase(fd);
+                            chats[chat_name].first.erase(fd); //unsubscribing
                             break;
                         case c_send_message:
-                            message.clear();
-                            message.append(user_data[fd]);
-                            message.push_back('\t');
-                            message.append(timedate_string);
-                            message.push_back('\n');
-                            message.append(client_data.message_text);
-                            all_messages.push_back(message);
+                            chat_file << user_data[fd] << '\t';
+                            chat_file.write(timedate_string, strlen(timedate_string));
+                            chat_file << '\t' << client_data.message_text << std::endl;
                             break;
                         default:
                             fprintf(stderr, "Client %d send unacceptable message\n", fd);
@@ -94,24 +103,24 @@ void chat_message(int go_in_chat_pipe_input) {
                 }
             }
         }
-        // TODO : write to file
         // sending data to all clients
         if (messages_offset.size() != vec_of_events.size())
             vec_of_events.resize(messages_offset.size());
         for (auto&& [fd, off] : messages_offset) {
-            while (true) {
-                ++off;
-                if (off == all_messages.end()) {
-                    --off;
-                    break;
-                }
+            chat_file.seekg(0, chat_file.end);
+            auto file_size = chat_file.tellg();
+            chat_file.seekg(off);
+            while (off != file_size) {
+                //maybe check for chat_file.bad()
                 server_data.responce = s_new_message;
-                server_data.message_text = *off;
+                std::getline(chat_file, server_data.message_text);
+                off = chat_file.tellp();
                 send_resp_to_client(&server_data, fd);
             }
         }
     }
     close(chat_epoll_fd);
+    chat_file.close();
 }
 
 void list_of_chats(int end_to_read_from) {
@@ -151,11 +160,18 @@ void list_of_chats(int end_to_read_from) {
                             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                             break;
                         case c_create_chat:
-                            creat(received.message_text.c_str(), S_IRWXG | S_IRWXO | S_IRWXU);
+                            {
+                            int check = creat((received.message_text + ".chat").c_str(), S_IRWXG | S_IRWXO | S_IRWXU);
                             if (errno == EEXIST)
                             {
                                 resp.responce = s_failure;
                                 resp.message_text = "Chat with such name already exists";
+                                send_resp_to_client(&resp, client_sockfd);
+                            }
+                            else if (check < 0){
+                                resp.responce = s_failure;
+                                resp.message_text = "Server error: could not create chat, try again later";
+                                perror("Chat creation error");
                                 send_resp_to_client(&resp, client_sockfd);
                             }
                             else
@@ -164,6 +180,7 @@ void list_of_chats(int end_to_read_from) {
                                 send_available_chats(new_socket);
                             }
                             break;
+                            }
                         case c_connect_chat:
                             if (chats.count(received.message_text) == 0)
                             {
@@ -173,11 +190,12 @@ void list_of_chats(int end_to_read_from) {
                             }
                             //if chat was unused -> setup
                             if(chats[received.message_text].first.size() == 0){
+                                close(chats[received.message_text].second.out);
                                 if(pipe((int *)&(chats[received.message_text].second)) < 0) {
                                     perror("Could not open pipe to chat");
                                 }
                                 fcntl(chats[received.message_text].second.in, F_SETFL, fcntl(chats[received.message_text].second.in, F_GETFL) | O_NONBLOCK);
-                                std::thread(chat_message, chats[received.message_text].second.in).detach();//auto chat_thread = 
+                                std::thread(chat_message, chats[received.message_text].second.in, received.message_text).detach();
                             }
                             // Adding a subscriber to the chat
                             chats.at(received.message_text).first.insert(client_sockfd);
