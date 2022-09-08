@@ -1,15 +1,15 @@
-#include "chatroutine.h"
+#include "readroutine.h"
 #include "client_interface.h"
 #include "mainwindow.h"
 #include <QDebug>
 
-ChatRoutine::ChatRoutine(QTcpSocket* socket) {
+ReadRoutine::ReadRoutine(QTcpSocket* socket) {
     tcp_socket = socket;
     go_on = true;
     length = sizeof(server_responce_e);
 }
 
-bool ChatRoutine::UnblockedReadFromServer(){
+bool ReadRoutine::UnblockedReadFromServer(){
 //    if (!tcp_socket->waitForReadyRead(1))
 //        return true;
     int received = 1;
@@ -47,17 +47,26 @@ bool ChatRoutine::UnblockedReadFromServer(){
                     length = sizeof(server_responce_e);
                     off = 0;
                     readed = true;
-                    switch(s_d.responce){
-                        case s_new_message:
-                            emit new_message_come(s_d.message_text);
+                    switch(client_state){
+                        case no_name:
                             break;
-                        case s_success:
-                            emit get_chats(s_d);
-                            emit finished();
-                            return true;
+                        case no_chat:
+                            break;
+                        case in_chat:
+                            switch(s_d.responce){
+                                case s_new_message:
+                                    emit new_message_come(s_d.message_text);
+                                    break;
+                                case s_success:
+                                    emit get_chats(s_d);
+//                                    emit finished();
+//                                    return true;
+                                default:
+                                    qDebug() << "Chat routine received wrong data";
+                            }
+                            break;
                         default:
-                            qDebug() << "Chat routine received wrong data";
-                            //wrong message
+                            break;
                     }
                 }
                 break;
@@ -90,35 +99,38 @@ bool ChatRoutine::UnblockedReadFromServer(){
 //	return;
 //}
 
-void ChatRoutine::stop() {
+void ReadRoutine::stop() {
     emit finished();
 }
 
-ChatRoutineHandler::ChatRoutineHandler(QObject *parent, QTcpSocket* tcp_socket) {
+ReadRoutineHandler::ReadRoutineHandler(QObject *parent, QTcpSocket* tcp_socket) {
     setParent(parent);
     this->tcp_socket = tcp_socket;
 }
 
-void ChatRoutineHandler::startThread(){
-    ChatRoutine* chat_proc = new ChatRoutine(tcp_socket);
+void ReadRoutineHandler::startThread(){
+    ReadRoutine* chat_proc = new ReadRoutine(tcp_socket);
     QThread* thread = new QThread;
     chat_proc->moveToThread(thread);
-//    connect(qobject_cast<MainWindow*>(parent()), &MainWindow::destroyed, chat_proc, &ChatRoutine::stop);
-    connect(chat_proc, &ChatRoutine::new_message_come, qobject_cast<MainWindow*>(parent()), &MainWindow::on_newMessage);
-    connect(chat_proc, &ChatRoutine::get_chats, qobject_cast<MainWindow*>(parent()), &MainWindow::on_leaveChat2nd);
-//    connect(thread, &QThread::started, chat_proc, &ChatRoutine::process);
-    connect(chat_proc, &ChatRoutine::finished, thread, &QThread::quit);
-    connect(qobject_cast<QIODevice*>(tcp_socket), &QIODevice::readyRead, chat_proc, &ChatRoutine::UnblockedReadFromServer);
-    connect(this, &ChatRoutineHandler::stop, chat_proc, &ChatRoutine::stop);
-    connect(chat_proc, &ChatRoutine::finished, chat_proc, &ChatRoutine::deleteLater);
+
+    connect(chat_proc, &ReadRoutine::new_message_come, qobject_cast<MainWindow*>(parent()), &MainWindow::on_newMessage);
+    connect(chat_proc, &ReadRoutine::get_chats, qobject_cast<MainWindow*>(parent()), &MainWindow::on_leaveChat2nd);
+    connect(chat_proc, &ReadRoutine::create_chat, qobject_cast<MainWindow*>(parent()), &MainWindow::on_createChat2nd);
+    connect(chat_proc, &ReadRoutine::connect_chat, qobject_cast<MainWindow*>(parent()), &MainWindow::on_chatButton_Clicked2nd);
+    connect(chat_proc, &ReadRoutine::send_name, qobject_cast<MainWindow*>(parent()), &MainWindow::on_nameLine_returnPressed2nd);
+
+    connect(chat_proc, &ReadRoutine::finished, thread, &QThread::quit);
+    connect(qobject_cast<QIODevice*>(tcp_socket), &QIODevice::readyRead, chat_proc, &ReadRoutine::UnblockedReadFromServer);
+    connect(this, &ReadRoutineHandler::stop, chat_proc, &ReadRoutine::stop);
+    connect(chat_proc, &ReadRoutine::finished, chat_proc, &ReadRoutine::deleteLater);
     connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     thread->start();
 }
 
-void ChatRoutineHandler::stopThread() {
+void ReadRoutineHandler::stopThread() {
     emit stop();
 }
 
-ChatRoutineHandler::~ChatRoutineHandler(){
+ReadRoutineHandler::~ReadRoutineHandler(){
 //    stopThread();
 }

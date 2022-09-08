@@ -15,7 +15,10 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     socket = new QTcpSocket(this);
-    CRH = new ChatRoutineHandler(this, socket);
+    client_state = no_name;
+    auto a = ui->NameLine;
+    connect(ui->NameLine, &QLineEdit::returnPressed, this, &MainWindow::on_nameLine_returnPressed1st);
+    CRH = new ReadRoutineHandler(this, socket);
     CRH->startThread();
     StartConnection();
 }
@@ -38,7 +41,7 @@ void MainWindow::GetAvailableChats(const std::string& chat_list){
     //creating mid ui
     QLineEdit* NewChatLine = new QLineEdit();
     NewChatLine->setPlaceholderText("Enter new chat's name:");
-    connect(NewChatLine, &QLineEdit::returnPressed, this, &MainWindow::on_createChat);
+    connect(NewChatLine, &QLineEdit::returnPressed, this, &MainWindow::on_createChat1st);
     ui->verticalLayout->insertWidget(0, NewChatLine);
     QTableView* ChatsTable = new QTableView;
     QStringList chats = QString::fromStdString(s_message.message_text).split("\n");
@@ -49,12 +52,8 @@ void MainWindow::GetAvailableChats(const std::string& chat_list){
         auto chat = new QPushButton();
         chat->setText(chats.at(row));
         ChatsTable->setIndexWidget(model->index(row, 0), chat);
-        connect(chat, &QPushButton::clicked, this, &MainWindow::on_ChatButton_Clicked);
+        connect(chat, &QPushButton::clicked, this, &MainWindow::on_chatButton_Clicked1st);
         connect(ChatsTable, &QTableView::destroyed, chat, &QPushButton::deleteLater);
-//        connect(ChatsTable, &QTableView::destroyed, [=](){
-//            chat->disconnect();
-//            chat->deleteLater();
-//        });
     }
     ChatsTable->horizontalHeader()->hide();
     ChatsTable->verticalHeader()->hide();
@@ -62,11 +61,6 @@ void MainWindow::GetAvailableChats(const std::string& chat_list){
     ui->verticalLayout->insertWidget(1, ChatsTable);
     ChatsTable->show();
 }
-
-//MainWindow::closeEvent() {
-//    //
-//}
-
 MainWindow::~MainWindow()
 {
     delete ui;
@@ -74,7 +68,7 @@ MainWindow::~MainWindow()
     delete CRH;
 }
 
-void MainWindow::on_NameLine_returnPressed()
+void MainWindow::on_nameLine_returnPressed1st()
 {
     if(ui->NameLine->text().size() > 32){
         QMessageBox::warning(this, "ACHTUNG!","This name is too big!");
@@ -82,54 +76,61 @@ void MainWindow::on_NameLine_returnPressed()
     else{
         c_message.message_text = ui->NameLine->text().toStdString();
         SendToServer(socket, &c_message);
-        //to another thread
-//        ReadFromServer(socket, &s_message);
-//        if(s_message.responce == s_failure){
-//            QMessageBox::warning(this, "ACHTUNG!","This name is already used!");
-//        }
-//        else{
-//            ReadFromServer(socket, &s_message);
-//            if(s_message.responce == s_failure){
-//                QMessageBox::warning(this, "ACHTUNG!", "Could not create this chat");
-//            }
-//            else{
-//                GetAvailableChats();
-//            }
-//        }
     }
 }
 
-void MainWindow::on_ChatButton_Clicked(){
+//need to rethink whole function bcs it needs to read twice
+void MainWindow::on_nameLine_returnPressed2nd(server_data_t s_message){
+    if(s_message.responce == s_failure){
+        QMessageBox::warning(this, "ACHTUNG!","This name is already used!");
+    }
+    else{
+//        ReadFromServer(socket, &s_message);
+        if(s_message.responce == s_failure){
+            QMessageBox::warning(this, "ACHTUNG!", "Could not get list of chats");
+        }
+        else{
+            client_state = no_chat;
+            GetAvailableChats(s_message.message_text);
+        }
+    }
+}
+
+void MainWindow::on_chatButton_Clicked1st(){
     QPushButton* chat = qobject_cast<QPushButton*>(sender()); // get QObject that emitted the signal
     c_message.request = c_connect_chat;
     c_message.message_text = chat->text().toStdString();
     SendToServer(socket, &c_message);
-    ReadFromServer(socket, &s_message);
-    if(s_message.responce == s_success){
-        //chat forming
-        SafeCleaning(ui->verticalLayout->layout());
-        QPushButton* LeaveButton = new QPushButton("Leave chat");
-        connect(LeaveButton, &QPushButton::clicked, this, &MainWindow::on_leaveChat1st);
-        QListWidget* QLW = new QListWidget();
-        QLineEdit* MessageLine = new QLineEdit();
-        MessageLine->setPlaceholderText("Enter your message:");
-        connect(MessageLine, &QLineEdit::returnPressed, this, &MainWindow::on_sendMessage);
-        ui->verticalLayout->insertWidget(0, LeaveButton);
-        ui->verticalLayout->insertWidget(1, QLW);
-        ui->verticalLayout->insertWidget(2, MessageLine);
-    }
-    else{
-        QMessageBox::warning(this, "ACHTUNG!", "Could not connect to this chat!");
-    }
 }
+
+void MainWindow::on_chatButton_Clicked2nd(server_data_t s_message){
+        if(s_message.responce == s_success){
+            client_state = in_chat;
+            SafeCleaning(ui->verticalLayout->layout());
+            QPushButton* LeaveButton = new QPushButton("Leave chat");
+            connect(LeaveButton, &QPushButton::clicked, this, &MainWindow::on_leaveChat1st);
+            QListWidget* QLW = new QListWidget();
+            QLineEdit* MessageLine = new QLineEdit();
+            MessageLine->setPlaceholderText("Enter your message:");
+            connect(MessageLine, &QLineEdit::returnPressed, this, &MainWindow::on_sendMessage);
+            ui->verticalLayout->insertWidget(0, LeaveButton);
+            ui->verticalLayout->insertWidget(1, QLW);
+            ui->verticalLayout->insertWidget(2, MessageLine);
+        }
+        else{
+            QMessageBox::warning(this, "ACHTUNG!", "Could not connect to this chat!");
+        }
+}
+
+
 
 void MainWindow::on_newMessage(std::string& message_text){
     static size_t row = 0;
     auto QLW = qobject_cast<QListWidget*>(ui->verticalLayout->itemAt(1)->widget());
-    QLW->addItem(QString::fromStdString(message_text)); //need to modify the text
+    QLW->addItem(QString::fromStdString(message_text));
 }
 
-void MainWindow::on_createChat(){
+void MainWindow::on_createChat1st(){
     auto line = qobject_cast<QLineEdit*>(sender());
     if(line->text().contains(' ')){
         QMessageBox::warning(this, "ACHTUNG!", "Chat name cannot contain with a space");
@@ -139,20 +140,22 @@ void MainWindow::on_createChat(){
         c_message.request = c_create_chat;
         c_message.message_text = line->text().toStdString();
         SendToServer(socket, &c_message);
-        ReadFromServer(socket, &s_message);
-        if(s_message.responce == s_failure){
-            QMessageBox::warning(this, "ACHTUNG!", "Could not create this chat");
-            line->clear();
-        }
-        else{
-            GetAvailableChats();
-        }
+    }
+    line->clear();
+}
+
+void MainWindow::on_createChat2nd(server_data_t s_message){
+    if(s_message.responce == s_failure){
+        QMessageBox::warning(this, "ACHTUNG!", "Could not create this chat");
+//        line->clear();
+    }
+    else{
+        GetAvailableChats(s_message.message_text);
     }
 }
 
 void MainWindow::on_leaveChat1st(){
     client_data_t c_message;
-//    emit CRH->stopThread();
     c_message.request = c_leave_chat;
     c_message.message_text = "";
     SendToServer(socket, &c_message);
@@ -165,7 +168,8 @@ void MainWindow::on_leaveChat2nd(server_data_t s_message){
         QMessageBox::warning(this, "ACHTUNG!", "Server error: could not leave this chat, try again");
     }
     else{
-        GetAvailableChats();
+        client_state = no_chat;
+        GetAvailableChats(s_message.message_text);
     }
 
 }

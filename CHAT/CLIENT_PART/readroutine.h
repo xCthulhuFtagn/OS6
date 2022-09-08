@@ -7,7 +7,7 @@
 #include <memory>
 #include "client_interface.h"
 
-class ChatRoutine : public QObject {
+class ReadRoutine : public QObject {
     Q_OBJECT
 
     enum unblocked_read_state {
@@ -26,7 +26,7 @@ class ChatRoutine : public QObject {
 
 public:
     std::atomic_bool go_on;
-    ChatRoutine(QTcpSocket*);
+    ReadRoutine(QTcpSocket*);
 
 public slots:
     bool UnblockedReadFromServer();
@@ -37,15 +37,18 @@ signals:
 	void finished(); 	/* сигнал о завершении работы */
     void new_message_come(std::string&);
     void get_chats(server_data_t);
+    void connect_chat(server_data_t);
+    void create_chat(server_data_t);
+    void send_name(server_data_t);
 };
 
-class ChatRoutineHandler : public QObject {
+class ReadRoutineHandler : public QObject {
 	Q_OBJECT
 
     QTcpSocket* tcp_socket;
 public:
-	ChatRoutineHandler(QObject *parent, QTcpSocket*);
-	~ChatRoutineHandler();
+    ReadRoutineHandler(QObject *parent, QTcpSocket*);
+    ~ReadRoutineHandler();
     void startThread();
 
 public slots:

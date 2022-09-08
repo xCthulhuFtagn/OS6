@@ -7,6 +7,14 @@
 #define MAX_CHAT_NAME_LEN 32
 #define MAX_NAME_LEN 32
 
+static std::atomic_int client_state;
+
+enum client_state{
+    no_name = 0,
+    no_chat,
+    in_chat
+};
+
 typedef enum {
     c_set_name = 0,
     c_create_chat,
