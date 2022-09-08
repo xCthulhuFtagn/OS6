@@ -9,9 +9,9 @@ std::unordered_set<std::string> used_usernames;
 
 int server_starting(){
     namespace fs = std::filesystem;
-    #if DEBUG_TRACE
+    // #if DEBUG_TRACE
          printf("%d :- server_starting()\n", getpid());
-    #endif
+    // #endif
     fs::path path_of_chats(".");
     for (const auto& entry : fs::directory_iterator(path_of_chats)) {
         if (entry.is_regular_file() && fs::path(entry).extension() == ".chat") {
@@ -22,9 +22,9 @@ int server_starting(){
 }
 
 void server_ending(){
-    #if DEBUG_TRACE
+    // #if DEBUG_TRACE
         printf("%d :- server_ending()\n", getpid());
-    #endif
+    // #endif
 }
 
 // int recv_part_of_request(void* object, size_t length, int sockfd){

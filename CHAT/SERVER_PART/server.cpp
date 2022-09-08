@@ -7,8 +7,7 @@ extern std::unordered_map<int, std::string> user_data;
 static int server_running = 1;
 int disco_pipe[2], list_chats_pipe[2], username_enter_pipe[2];
 
-void catch_signals()
-{
+void catch_signals(){
     server_running = 0;
 }
 
@@ -27,13 +26,12 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
         return;
     }
     std::vector<epoll_event> vec_of_events;
-    std::unordered_map<int, std::streampos> messages_offset;
+    std::unordered_map<int, std::streamoff> messages_offset;
     epoll_event ev;
     ev.events = EPOLLEXCLUSIVE | EPOLLIN | EPOLLET;
 
     time_t curr_time;
 	tm * curr_tm;
-    char timedate_string[100] = { 0 };
     size_t off = 0;
 
     while (true) {
@@ -45,7 +43,7 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
             epoll_ctl(chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
         }
         if (read_bytes == 0) {
-            fprintf(stderr, "Closing routine for chat: %s\n", chat_name.c_str());
+            fprintf(stderr, "closing routine for chat: %s\n", chat_name.c_str());
             close(go_in_chat_pipe_input);
             close(chat_epoll_fd);
             chat_file.close();
@@ -58,6 +56,7 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
             return;
         }
         // wait for messages
+        char timedate_string[100] = { 0 };
         int n = epoll_wait(chat_epoll_fd, vec_of_events.data(), vec_of_events.size(), 25);
         if (n < 0 && errno != EINVAL && errno != EINTR) {
             perror("epoll wait");
@@ -66,7 +65,7 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
         } else if (n > 0) {
             time(&curr_time);
             curr_tm = localtime(&curr_time);
-            strftime(timedate_string, sizeof(timedate_string) - 1, "%T %D\0", curr_tm);
+            strftime(timedate_string, sizeof(timedate_string) - 1, "%T %D", curr_tm);
             for (off = 0; off < n; ++off) {
                 int err;
                 int fd = vec_of_events[off].data.fd;
@@ -89,7 +88,7 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                         case c_send_message:
                             chat_file << user_data[fd] << '\t';
                             chat_file.write(timedate_string, strlen(timedate_string));
-                            chat_file << '\t' << client_data.message_text << std::endl;
+                            chat_file << std::endl << client_data.message_text << "\r";
                             break;
                         default:
                             fprintf(stderr, "Client %d send unacceptable message\n", fd);
@@ -103,17 +102,17 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                 }
             }
         }
-        // sending data to all clients
         if (messages_offset.size() != vec_of_events.size())
             vec_of_events.resize(messages_offset.size());
-        for (auto&& [fd, off] : messages_offset) {
-            chat_file.seekg(0, chat_file.end);
-            auto file_size = chat_file.tellg();
-            chat_file.seekg(off);
+        // sending data to all clients
+        chat_file.seekp(0, chat_file.end);
+        auto file_size = chat_file.tellp();
+        for (auto& [fd, off] : messages_offset) {
+            chat_file.seekg(off, chat_file.beg);
             while (off != file_size) {
                 //maybe check for chat_file.bad()
                 server_data.responce = s_new_message;
-                std::getline(chat_file, server_data.message_text);
+                std::getline(chat_file, server_data.message_text, '\r');
                 off = chat_file.tellp();
                 send_resp_to_client(&server_data, fd);
             }
@@ -130,21 +129,23 @@ void list_of_chats(int end_to_read_from) {
         return;
     }
     std::vector<epoll_event> vec_of_events; //empty at start
+    std::unordered_set<int> clients_without_chat;
     epoll_event ev;
     ev.events = EPOLLEXCLUSIVE | EPOLLIN | EPOLLET;
 
     server_data_t resp;
     client_data_t received;
     int new_socket, bytes;
-    while(true){
+    while (true) {
         while ((bytes = read(end_to_read_from, &new_socket, sizeof(int))) > 0) {
             ev.data.fd = new_socket;
+            clients_without_chat.insert(new_socket);
             vec_of_events.push_back(ev);
             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
             send_available_chats(new_socket);
         }
         if(bytes < 0 && errno != EAGAIN && errno != EINTR){
-            perror("List of chats pipe error");
+            perror("list of chats pipe error");
         }
         int n = epoll_wait(no_chat_epoll_fd, vec_of_events.data(), vec_of_events.size(), 100);
         if (n < 0 && errno != EINVAL && errno != EINTR) {
@@ -157,6 +158,7 @@ void list_of_chats(int end_to_read_from) {
                     switch(received.request){
                         case c_disconnect:
                             write(disco_pipe[1], &client_sockfd, sizeof(int));
+                            clients_without_chat.erase(client_sockfd);
                             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                             break;
                         case c_create_chat:
@@ -171,13 +173,14 @@ void list_of_chats(int end_to_read_from) {
                             else if (check < 0){
                                 resp.responce = s_failure;
                                 resp.message_text = "Server error: could not create chat, try again later";
-                                perror("Chat creation error");
+                                perror("chat creation error");
                                 send_resp_to_client(&resp, client_sockfd);
                             }
                             else
                             { // if ok -> add the chat to the list of available ones + send list of them
                                 chats[received.message_text] = {};
-                                send_available_chats(new_socket);
+                                for (int socket : clients_without_chat)
+                                    send_available_chats(socket);
                             }
                             break;
                             }
@@ -192,7 +195,7 @@ void list_of_chats(int end_to_read_from) {
                             if(chats[received.message_text].first.size() == 0){
                                 close(chats[received.message_text].second.out);
                                 if(pipe((int *)&(chats[received.message_text].second)) < 0) {
-                                    perror("Could not open pipe to chat");
+                                    perror("could not open pipe to chat");
                                 }
                                 fcntl(chats[received.message_text].second.in, F_SETFL, fcntl(chats[received.message_text].second.in, F_GETFL) | O_NONBLOCK);
                                 std::thread(chat_message, chats[received.message_text].second.in, received.message_text).detach();
@@ -201,19 +204,21 @@ void list_of_chats(int end_to_read_from) {
                             chats.at(received.message_text).first.insert(client_sockfd);
                             resp.responce = s_success;
                             resp.message_text = "";
+                            clients_without_chat.erase(client_sockfd);
                             write(chats[received.message_text].second.out, &client_sockfd, sizeof(int));
                             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                             send_resp_to_client(&resp, client_sockfd);
                             break;
                         default:
-                            fprintf(stderr, "Wrong request from client : %d\n", received.request);
+                            fprintf(stderr, "wrong request from client : %d\n", received.request);
                             resp.responce = s_failure;
-                            resp.message_text =  "WRONG REQUEST";
+                            resp.message_text =  "Wrong request";
                             send_resp_to_client(&resp, client_sockfd);
                     }
                 }
                 if (err == 0) {
                     epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                    clients_without_chat.erase(client_sockfd);
                     write(disco_pipe[1], &client_sockfd, sizeof(int));
                 }
             }
@@ -240,7 +245,7 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
             epoll_ctl(no_name_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
         }
         if(bytes < 0 && errno != EAGAIN){
-            perror("Name pipe error");
+            perror("name pipe error");
         }
         int n = epoll_wait(no_name_epoll_fd, vec_of_events.data(), vec_of_events.size(), 100);
         if (n < 0 && errno != EINVAL && errno != EINTR) {
@@ -278,7 +283,7 @@ void disconnect(){
             user_data.erase(fd);
         }
         if (read_bytes < 0 && errno != EAGAIN && errno != EINTR) {
-            perror("Read disconnected user_fd from pipe");
+            perror("read disconnected user_fd from pipe");
         }
     }
 }

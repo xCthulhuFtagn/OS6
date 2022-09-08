@@ -1,12 +1,12 @@
 #include "client_interface.h"
 
 bool SendToServer(QTcpSocket* socket, client_data_t* c_d){
-    int written = socket->write(QByteArray::fromRawData((char*)(&c_d->request), sizeof(client_request_e))); //writes by using this bullshit interface
+    int written = socket->write(QByteArray::fromRawData((char*)(&c_d->request), sizeof(client_request_e)));
     if (written < 0) return false;
     size_t tmp = c_d->message_text.size();
-    written = socket->write(QByteArray::fromRawData((char*)(&tmp), sizeof(size_t))); //writes by using this bullshit interface
+    written = socket->write(QByteArray::fromRawData((char*)(&tmp), sizeof(size_t)));
     if (written < 0) return false;
-    written = socket->write(QByteArray::fromRawData((char*)(c_d->message_text.c_str()), c_d->message_text.size())); //writes by using this bullshit interface
+    written = socket->write(QByteArray::fromRawData((char*)(c_d->message_text.c_str()), c_d->message_text.size()));
     if (written < 0) return false;
     qDebug() << "Written a message to server";
     return true;

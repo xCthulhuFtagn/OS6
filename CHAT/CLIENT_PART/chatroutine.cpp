@@ -109,7 +109,7 @@ void ChatRoutineHandler::startThread(){
 //    connect(thread, &QThread::started, chat_proc, &ChatRoutine::process);
     connect(chat_proc, &ChatRoutine::finished, thread, &QThread::quit);
     connect(qobject_cast<QIODevice*>(tcp_socket), &QIODevice::readyRead, chat_proc, &ChatRoutine::UnblockedReadFromServer);
-    connect(this, &ChatRoutineHandler::stopThread, chat_proc, &ChatRoutine::stop);
+    connect(this, &ChatRoutineHandler::stop, chat_proc, &ChatRoutine::stop);
     connect(chat_proc, &ChatRoutine::finished, chat_proc, &ChatRoutine::deleteLater);
     connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     thread->start();

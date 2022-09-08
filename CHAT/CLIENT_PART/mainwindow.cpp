@@ -16,6 +16,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     socket = new QTcpSocket(this);
     CRH = new ChatRoutineHandler(this, socket);
+    CRH->startThread();
     StartConnection();
 }
 
@@ -31,7 +32,7 @@ void MainWindow::StartConnection(){
     connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
 }
 
-void MainWindow::GetAvailableChats(){
+void MainWindow::GetAvailableChats(const std::string& chat_list){
     //deleting start ui
     SafeCleaning(ui->verticalLayout->layout());
     //creating mid ui
@@ -81,19 +82,20 @@ void MainWindow::on_NameLine_returnPressed()
     else{
         c_message.message_text = ui->NameLine->text().toStdString();
         SendToServer(socket, &c_message);
-        ReadFromServer(socket, &s_message);
-        if(s_message.responce == s_failure){
-            QMessageBox::warning(this, "ACHTUNG!","This name is already used!");
-        }
-        else{
-            ReadFromServer(socket, &s_message);
-            if(s_message.responce == s_failure){
-                QMessageBox::warning(this, "ACHTUNG!", "Could not create this chat");
-            }
-            else{
-                GetAvailableChats();
-            }
-        }
+        //to another thread
+//        ReadFromServer(socket, &s_message);
+//        if(s_message.responce == s_failure){
+//            QMessageBox::warning(this, "ACHTUNG!","This name is already used!");
+//        }
+//        else{
+//            ReadFromServer(socket, &s_message);
+//            if(s_message.responce == s_failure){
+//                QMessageBox::warning(this, "ACHTUNG!", "Could not create this chat");
+//            }
+//            else{
+//                GetAvailableChats();
+//            }
+//        }
     }
 }
 
@@ -115,7 +117,6 @@ void MainWindow::on_ChatButton_Clicked(){
         ui->verticalLayout->insertWidget(0, LeaveButton);
         ui->verticalLayout->insertWidget(1, QLW);
         ui->verticalLayout->insertWidget(2, MessageLine);
-        CRH->startThread();
     }
     else{
         QMessageBox::warning(this, "ACHTUNG!", "Could not connect to this chat!");

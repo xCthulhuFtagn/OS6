@@ -22,6 +22,7 @@ public:
 public slots:
     void on_newMessage(std::string&);
     void on_leaveChat2nd(server_data_t);
+    void GetAvailableChats(const std::string&);
 
 private slots:
     void on_NameLine_returnPressed();
@@ -35,7 +36,6 @@ private:
     QTcpSocket *socket;
     ChatRoutineHandler* CRH;
     QStandardItemModel* model;
-    void GetAvailableChats();
     void StartConnection();
     server_data_t s_message;
     client_data_t c_message;
