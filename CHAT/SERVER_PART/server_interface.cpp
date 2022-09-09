@@ -27,17 +27,6 @@ void server_ending(){
     // #endif
 }
 
-// int recv_part_of_request(void* object, size_t length, int sockfd){
-//     size_t off = 0;
-//     int err;
-//     while (recv(sockfd, object + off, length - off, 0)) {
-//         if (errno == EAGAIN) continue;
-//         if (err == -1) return -1;
-//         off += err;
-//     }
-//     return 0;
-// }
-
 int read_request_from_client(client_data_t* received, int sockfd){
     size_t length;
     int err;
@@ -62,6 +51,7 @@ void send_resp_to_client(const server_data_t* resp, int sockfd){
         printf("%d : - send_resp_to_client()\n", getpid());
     #endif
     int written_bytes;
+    written_bytes = send(sockfd, (void*)(&resp->request), sizeof(client_request_e), MSG_WAITALL);
     written_bytes = send(sockfd, (void*)(&resp->responce), sizeof(server_responce_e), MSG_WAITALL);
     size_t length = resp->message_text.size();
     written_bytes = send(sockfd, (void*)(&length), sizeof(size_t), MSG_WAITALL);
@@ -80,6 +70,7 @@ void end_resp_to_client(int sockfd){
 
 void send_available_chats(int sockfd){
     server_data_t resp;
+    resp.request = c_get_chats;
     resp.responce = s_success;
     for (auto chat : chats){
         resp.message_text += chat.first + "\n";

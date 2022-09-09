@@ -40,7 +40,7 @@ private:
     QTcpSocket *socket;
     ReadRoutineHandler* CRH;
     QStandardItemModel* model;
-    void StartConnection();
+    bool StartConnection();
     server_data_t s_message;
     client_data_t c_message;
 };

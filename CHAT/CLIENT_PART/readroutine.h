@@ -11,7 +11,8 @@ class ReadRoutine : public QObject {
     Q_OBJECT
 
     enum unblocked_read_state {
-        TYPE,
+        REQ_TYPE,
+        RESP_TYPE,
         LENGTH,
         MESSAGE
     };
@@ -20,7 +21,7 @@ class ReadRoutine : public QObject {
     QTcpSocket* tcp_socket;
 
     size_t off = 0;
-    unblocked_read_state state = TYPE;
+    unblocked_read_state state = REQ_TYPE;
     size_t length;
     bool readed = false;
 
@@ -29,8 +30,7 @@ public:
     ReadRoutine(QTcpSocket*);
 
 public slots:
-    bool UnblockedReadFromServer();
-//	void process(); 	/*  создает и запускает */
+    bool UnblockedReadFromServer(); /*  создает и запускает */
     void stop();    	/*  останавливает */
 
 signals:

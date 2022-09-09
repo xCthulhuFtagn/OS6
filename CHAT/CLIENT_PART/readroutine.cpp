@@ -17,7 +17,17 @@ bool ReadRoutine::UnblockedReadFromServer(){
 
     while (received > 0) {
         switch (state) {
-            case TYPE:
+            case REQ_TYPE:
+                received = tcp_socket->read((char*)&s_d.request, length);
+                if (received < 0) return false;
+                off += received;
+                if (off == length) {
+                    state = RESP_TYPE;
+                    length = sizeof(server_responce_e);
+                    off = 0;
+                }
+                break;
+            case RESP_TYPE:
                 received = tcp_socket->read((char*)&s_d.responce, length);
                 if (received < 0) return false;
                 off += received;
@@ -43,30 +53,50 @@ bool ReadRoutine::UnblockedReadFromServer(){
                 if (received < 0) return false;
                 off += received;
                 if (off == length) {
-                    state = TYPE;
+                    state = REQ_TYPE;
                     length = sizeof(server_responce_e);
                     off = 0;
                     readed = true;
+                    qDebug() << "Client state: " << client_state;
                     switch(client_state){
                         case no_name:
-                            break;
-                        case no_chat:
-                            break;
-                        case in_chat:
-                            switch(s_d.responce){
-                                case s_new_message:
-                                    emit new_message_come(s_d.message_text);
+                            switch(s_d.request){
+                                case c_set_name:
+                                    emit send_name(s_d);
                                     break;
-                                case s_success:
-                                    emit get_chats(s_d);
-//                                    emit finished();
-//                                    return true;
                                 default:
                                     qDebug() << "Chat routine received wrong data";
                             }
                             break;
-                        default:
+                        case no_chat:
+                            switch(s_d.request){
+                                case c_get_chats:
+                                    emit get_chats(s_d);
+                                    break;
+                                case c_create_chat:
+                                    emit create_chat(s_d);
+                                    break;
+                                case c_connect_chat:
+                                    emit connect_chat(s_d);
+                                    break;
+                                case c_wrong_request:
+                                    qDebug() << "Chat routine received wrong data";
+                                    break;
+                                default:
+                                    qDebug() << "Chat routine received wrong data";
+                            }
                             break;
+                        case in_chat:
+                            switch(s_d.request){
+                                case c_receive_message:
+                                    emit new_message_come(s_d.message_text);
+                                    break;
+                                case c_get_chats:
+                                    emit get_chats(s_d);
+                                    break;
+                                default:
+                                    qDebug() << "Chat routine received wrong data";
+                            }
                     }
                 }
                 break;

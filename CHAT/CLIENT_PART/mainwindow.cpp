@@ -15,24 +15,30 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     socket = new QTcpSocket(this);
+    /*if(!*/StartConnection();/*) {
+        MainWindow::deleteLater();
+        return;
+    }*/
     client_state = no_name;
     auto a = ui->NameLine;
     connect(ui->NameLine, &QLineEdit::returnPressed, this, &MainWindow::on_nameLine_returnPressed1st);
     CRH = new ReadRoutineHandler(this, socket);
     CRH->startThread();
-    StartConnection();
 }
 
-void MainWindow::StartConnection(){
+bool MainWindow::StartConnection(){
     socket->connectToHost("127.0.0.1", 5000);
     socket->setReadBufferSize(10000);
+    connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
     if(socket->waitForConnected(3000)){
         qDebug() << "Connected!";
+        return true;
     }
     else{
         qDebug() << "Not connected!";
+        return false;
     }
-    connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
+    //prev pos of connect
 }
 
 void MainWindow::GetAvailableChats(const std::string& chat_list){
@@ -82,7 +88,7 @@ void MainWindow::on_nameLine_returnPressed1st()
 //need to rethink whole function bcs it needs to read twice
 void MainWindow::on_nameLine_returnPressed2nd(server_data_t s_message){
     if(s_message.responce == s_failure){
-        QMessageBox::warning(this, "ACHTUNG!","This name is already used!");
+        QMessageBox::warning(this, "ACHTUNG!","This chat name is already used!");
     }
     else{
 //        ReadFromServer(socket, &s_message);

@@ -7,7 +7,7 @@ extern std::unordered_map<int, std::string> user_data;
 static int server_running = 1;
 int disco_pipe[2], list_chats_pipe[2], username_enter_pipe[2];
 
-void catch_signals(){
+void catch_signals() {
     server_running = 0;
 }
 
@@ -107,11 +107,11 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
         // sending data to all clients
         chat_file.seekp(0, chat_file.end);
         auto file_size = chat_file.tellp();
+        // server_data.responce = s_new_message;
         for (auto& [fd, off] : messages_offset) {
             chat_file.seekg(off, chat_file.beg);
             while (off != file_size) {
                 //maybe check for chat_file.bad()
-                server_data.responce = s_new_message;
                 std::getline(chat_file, server_data.message_text, '\r');
                 off = chat_file.tellp();
                 send_resp_to_client(&server_data, fd);
@@ -136,7 +136,7 @@ void list_of_chats(int end_to_read_from) {
     server_data_t resp;
     client_data_t received;
     int new_socket, bytes;
-    while (true) {
+    while(true){
         while ((bytes = read(end_to_read_from, &new_socket, sizeof(int))) > 0) {
             ev.data.fd = new_socket;
             clients_without_chat.insert(new_socket);
@@ -163,6 +163,7 @@ void list_of_chats(int end_to_read_from) {
                             break;
                         case c_create_chat:
                             {
+                            resp.request = c_create_chat;
                             int check = creat((received.message_text + ".chat").c_str(), S_IRWXG | S_IRWXO | S_IRWXU);
                             if (errno == EEXIST)
                             {
@@ -185,6 +186,7 @@ void list_of_chats(int end_to_read_from) {
                             break;
                             }
                         case c_connect_chat:
+                            resp.request = c_connect_chat;
                             if (chats.count(received.message_text) == 0)
                             {
                                 resp.responce = s_failure;
@@ -210,9 +212,10 @@ void list_of_chats(int end_to_read_from) {
                             send_resp_to_client(&resp, client_sockfd);
                             break;
                         default:
+                            resp.request = c_wrong_request;
                             fprintf(stderr, "wrong request from client : %d\n", received.request);
                             resp.responce = s_failure;
-                            resp.message_text =  "Wrong request";
+                            resp.message_text =  "";
                             send_resp_to_client(&resp, client_sockfd);
                     }
                 }
@@ -252,6 +255,7 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
             perror("epoll wait");
             return;
         } else if (n > 0) {
+            resp.request = c_set_name;
             for (int i = 0; i < n; ++i) {
                 int client_sockfd = vec_of_events[i].data.fd;
                 resp.responce = s_failure;
