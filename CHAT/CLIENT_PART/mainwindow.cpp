@@ -19,7 +19,7 @@ MainWindow::MainWindow(QWidget *parent)
         MainWindow::deleteLater();
         return;
     }*/
-    client_state = no_name;
+//    client_state = no_name;
     auto a = ui->NameLine;
     connect(ui->NameLine, &QLineEdit::returnPressed, this, &MainWindow::on_nameLine_returnPressed1st);
     CRH = new ReadRoutineHandler(this, socket);
@@ -41,7 +41,7 @@ bool MainWindow::StartConnection(){
     //prev pos of connect
 }
 
-void MainWindow::GetAvailableChats(const std::string& chat_list){
+void MainWindow::show_chats(const std::string& chat_list){
     //deleting start ui
     SafeCleaning(ui->verticalLayout->layout());
     //creating mid ui
@@ -50,10 +50,9 @@ void MainWindow::GetAvailableChats(const std::string& chat_list){
     connect(NewChatLine, &QLineEdit::returnPressed, this, &MainWindow::on_createChat1st);
     ui->verticalLayout->insertWidget(0, NewChatLine);
     QTableView* ChatsTable = new QTableView;
-    QStringList chats = QString::fromStdString(s_message.message_text).split("\n");
+    QStringList chats = QString::fromStdString(chat_list).split('\n');
     model = new QStandardItemModel(chats.length() - 1, 1);
     ChatsTable->setModel(model);
-    std::string tmp;
     for(size_t row = 0; row < chats.length() - 1; ++row){
         auto chat = new QPushButton();
         chat->setText(chats.at(row));
@@ -78,6 +77,7 @@ void MainWindow::on_nameLine_returnPressed1st()
 {
     if(ui->NameLine->text().size() > 32){
         QMessageBox::warning(this, "ACHTUNG!","This name is too big!");
+        ui->NameLine->clear();
     }
     else{
         c_message.message_text = ui->NameLine->text().toStdString();
@@ -85,20 +85,21 @@ void MainWindow::on_nameLine_returnPressed1st()
     }
 }
 
-//need to rethink whole function bcs it needs to read twice
 void MainWindow::on_nameLine_returnPressed2nd(server_data_t s_message){
     if(s_message.responce == s_failure){
-        QMessageBox::warning(this, "ACHTUNG!","This chat name is already used!");
+        QMessageBox::warning(this, "ACHTUNG!","This username is already used!");
+    }
+//    else client_state = no_chat;
+    // change of state here does not affect read state, mb not fast enough
+}
+
+void MainWindow::list_of_chats(server_data_t s_message){
+    if(s_message.responce == s_failure){
+        QMessageBox::warning(this, "ACHTUNG!", "Could not get list of chats");
     }
     else{
-//        ReadFromServer(socket, &s_message);
-        if(s_message.responce == s_failure){
-            QMessageBox::warning(this, "ACHTUNG!", "Could not get list of chats");
-        }
-        else{
-            client_state = no_chat;
-            GetAvailableChats(s_message.message_text);
-        }
+//        client_state = no_chat;
+        show_chats(s_message.message_text);
     }
 }
 
@@ -153,11 +154,10 @@ void MainWindow::on_createChat1st(){
 void MainWindow::on_createChat2nd(server_data_t s_message){
     if(s_message.responce == s_failure){
         QMessageBox::warning(this, "ACHTUNG!", "Could not create this chat");
-//        line->clear();
     }
-    else{
-        GetAvailableChats(s_message.message_text);
-    }
+//    else{
+//        list_of_chats(s_message);
+//    }
 }
 
 void MainWindow::on_leaveChat1st(){
@@ -165,20 +165,20 @@ void MainWindow::on_leaveChat1st(){
     c_message.request = c_leave_chat;
     c_message.message_text = "";
     SendToServer(socket, &c_message);
-    qDebug() << "on_leaveChat1st finished";
+//    client_state = no_chat;
 }
 
-void MainWindow::on_leaveChat2nd(server_data_t s_message){
-    this->s_message = s_message;
-    if(s_message.responce == s_failure){
-        QMessageBox::warning(this, "ACHTUNG!", "Server error: could not leave this chat, try again");
-    }
-    else{
-        client_state = no_chat;
-        GetAvailableChats(s_message.message_text);
-    }
+//void MainWindow::on_leaveChat2nd(server_data_t s_message){
+//    this->s_message = s_message;
+//    if(s_message.responce == s_failure){
+//        QMessageBox::warning(this, "ACHTUNG!", "Server error: could not leave this chat, try again");
+//    }
+//    else{
+//        client_state = no_chat;
+//        show_chats(s_message.message_text);
+//    }
 
-}
+//}
 
 void MainWindow::on_sendMessage(){
     client_data_t c_message;

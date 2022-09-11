@@ -25,8 +25,9 @@ public slots:
     void on_chatButton_Clicked2nd(server_data_t);
     void on_createChat2nd(server_data_t);
     void on_newMessage(std::string&);
-    void on_leaveChat2nd(server_data_t);
-    void GetAvailableChats(const std::string&);
+//    void on_leaveChat2nd(server_data_t);
+    void list_of_chats(server_data_t s_message);
+    void show_chats(const std::string&);
 
 private slots:
     void on_nameLine_returnPressed1st();

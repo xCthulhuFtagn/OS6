@@ -40,6 +40,7 @@ signals:
     void connect_chat(server_data_t);
     void create_chat(server_data_t);
     void send_name(server_data_t);
+    void leave_chat(server_data_t);
 };
 
 class ReadRoutineHandler : public QObject {

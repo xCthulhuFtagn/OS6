@@ -74,6 +74,9 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                     switch (client_data.request)
                     {
                         case c_leave_chat:
+                            server_data.request = c_leave_chat;
+                            server_data.message_text = "";
+                            send_resp_to_client(&server_data, fd);
                             write(list_chats_pipe[1], &fd, sizeof(int));
                             epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
                             messages_offset.erase(fd);
@@ -107,7 +110,7 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
         // sending data to all clients
         chat_file.seekp(0, chat_file.end);
         auto file_size = chat_file.tellp();
-        // server_data.responce = s_new_message;
+        server_data.request = c_receive_message;
         for (auto& [fd, off] : messages_offset) {
             chat_file.seekg(off, chat_file.beg);
             while (off != file_size) {
@@ -207,9 +210,9 @@ void list_of_chats(int end_to_read_from) {
                             resp.responce = s_success;
                             resp.message_text = "";
                             clients_without_chat.erase(client_sockfd);
+                            send_resp_to_client(&resp, client_sockfd);
                             write(chats[received.message_text].second.out, &client_sockfd, sizeof(int));
                             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
-                            send_resp_to_client(&resp, client_sockfd);
                             break;
                         default:
                             resp.request = c_wrong_request;
@@ -241,6 +244,7 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
     server_data_t resp;
     client_data_t received;
     int new_socket, bytes;
+    resp.message_text = "";
     while(true){
         while((bytes = read(end_to_read_from, &new_socket, sizeof(int))) > 0) {
             ev.data.fd = new_socket;
@@ -269,10 +273,12 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
                     user_data[client_sockfd] = received.message_text;
                     used_usernames.insert(received.message_text);
                     resp.responce = s_success;
+                    send_resp_to_client(&resp, client_sockfd);
                     write(end_to_write_to, &client_sockfd, sizeof(int));
                     epoll_ctl(no_name_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                 }
-                send_resp_to_client(&resp, client_sockfd);
+                else send_resp_to_client(&resp, client_sockfd);
+
             }
         }
     }

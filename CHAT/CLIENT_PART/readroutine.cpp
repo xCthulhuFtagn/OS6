@@ -62,6 +62,7 @@ bool ReadRoutine::UnblockedReadFromServer(){
                         case no_name:
                             switch(s_d.request){
                                 case c_set_name:
+                                    client_state = no_chat;
                                     emit send_name(s_d);
                                     break;
                                 default:
@@ -77,10 +78,8 @@ bool ReadRoutine::UnblockedReadFromServer(){
                                     emit create_chat(s_d);
                                     break;
                                 case c_connect_chat:
+                                    client_state = in_chat;
                                     emit connect_chat(s_d);
-                                    break;
-                                case c_wrong_request:
-                                    qDebug() << "Chat routine received wrong data";
                                     break;
                                 default:
                                     qDebug() << "Chat routine received wrong data";
@@ -91,7 +90,8 @@ bool ReadRoutine::UnblockedReadFromServer(){
                                 case c_receive_message:
                                     emit new_message_come(s_d.message_text);
                                     break;
-                                case c_get_chats:
+                                case c_leave_chat:
+                                    client_state = no_chat;
                                     emit get_chats(s_d);
                                     break;
                                 default:
@@ -99,7 +99,6 @@ bool ReadRoutine::UnblockedReadFromServer(){
                             }
                     }
                 }
-                break;
         }
     }
     return true;
@@ -136,6 +135,7 @@ void ReadRoutine::stop() {
 ReadRoutineHandler::ReadRoutineHandler(QObject *parent, QTcpSocket* tcp_socket) {
     setParent(parent);
     this->tcp_socket = tcp_socket;
+    client_state = no_name;
 }
 
 void ReadRoutineHandler::startThread(){
@@ -144,7 +144,7 @@ void ReadRoutineHandler::startThread(){
     chat_proc->moveToThread(thread);
 
     connect(chat_proc, &ReadRoutine::new_message_come, qobject_cast<MainWindow*>(parent()), &MainWindow::on_newMessage);
-    connect(chat_proc, &ReadRoutine::get_chats, qobject_cast<MainWindow*>(parent()), &MainWindow::on_leaveChat2nd);
+    connect(chat_proc, &ReadRoutine::get_chats, qobject_cast<MainWindow*>(parent()), &MainWindow::list_of_chats);
     connect(chat_proc, &ReadRoutine::create_chat, qobject_cast<MainWindow*>(parent()), &MainWindow::on_createChat2nd);
     connect(chat_proc, &ReadRoutine::connect_chat, qobject_cast<MainWindow*>(parent()), &MainWindow::on_chatButton_Clicked2nd);
     connect(chat_proc, &ReadRoutine::send_name, qobject_cast<MainWindow*>(parent()), &MainWindow::on_nameLine_returnPressed2nd);
