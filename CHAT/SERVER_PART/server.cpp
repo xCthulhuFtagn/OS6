@@ -73,7 +73,7 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                             // server_data.request = c_leave_chat;
                             // server_data.message_text = "";
                             // send_resp_to_client(&server_data, fd);
-                            if(write(list_chats_pipe[1], &fd, sizeof(int))){
+                            if(write(list_chats_pipe[1], &fd, sizeof(int)) < 0){
                                 perror("Failed to send client's fd to no_chat routine");
                             }
                             epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
