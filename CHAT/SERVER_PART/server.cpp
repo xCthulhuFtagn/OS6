@@ -1,15 +1,11 @@
 #include "server_interface.h"
+#include "server_routines.h"
 
 extern std::unordered_map<std::string, std::pair<std::unordered_set<int>, chat_pipe>> chats;
 extern std::unordered_set<std::string> used_usernames;
 extern std::unordered_map<int, std::string> user_data;
 
-static int server_running = 1;
 int disco_pipe[2], list_chats_pipe[2], username_enter_pipe[2];
-
-void catch_signals() {
-    server_running = 0;
-}
 
 void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
     client_data_t client_data;
@@ -74,10 +70,12 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                     switch (client_data.request)
                     {
                         case c_leave_chat:
-                            server_data.request = c_leave_chat;
-                            server_data.message_text = "";
-                            send_resp_to_client(&server_data, fd);
-                            write(list_chats_pipe[1], &fd, sizeof(int));
+                            // server_data.request = c_leave_chat;
+                            // server_data.message_text = "";
+                            // send_resp_to_client(&server_data, fd);
+                            if(write(list_chats_pipe[1], &fd, sizeof(int))){
+                                perror("Failed to send client's fd to no_chat routine");
+                            }
                             epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
                             messages_offset.erase(fd);
                             chats[chat_name].first.erase(fd); //unsubscribing
@@ -314,13 +312,12 @@ int main(int argc, char *argv[])
      * For Internet family of IPv4 addresses we use AF_INET
      */
     listen_socket = socket(AF_INET, SOCK_STREAM /*| SOCK_NONBLOCK*/, IPPROTO_TCP);
-    // auto param = 1;
-    // setsockopt(listen_socket, SOL_SOCKET, SOCK_NONBLOCK, (void *)&param, sizeof(int));
     bzero(&address, sizeof(address));
     address.sin_port = htons(5000);
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = inet_addr("127.0.0.1");
-    /* The call to the function "bind()" assigns the details specified
+    /* 
+     * The call to the function "bind()" assigns the details specified
      * in the structure address to the socket created in the step above
      */
     if (bind(listen_socket, (struct sockaddr *)&address, sizeof(address)) == -1)

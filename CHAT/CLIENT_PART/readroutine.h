@@ -7,6 +7,12 @@
 #include <memory>
 #include "client_interface.h"
 
+enum client_state_t{
+    no_name = 0,
+    no_chat,
+    in_chat
+};
+
 class ReadRoutine : public QObject {
     Q_OBJECT
 
@@ -27,6 +33,7 @@ class ReadRoutine : public QObject {
 
 public:
     std::atomic_bool go_on;
+    std::atomic_int client_state;
     ReadRoutine(QTcpSocket*);
 
 public slots:
@@ -51,6 +58,7 @@ public:
     ReadRoutineHandler(QObject *parent, QTcpSocket*);
     ~ReadRoutineHandler();
     void startThread();
+    ReadRoutine* chat_proc;
 
 public slots:
 	void stopThread();
