@@ -15,14 +15,14 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     socket = new QTcpSocket(this);
-    if(!StartConnection()){
-        QMessageBox::warning(this, "ACHTUNG!", "Server error: could not connect.\nTry reopening app once we reanimate the server!");
-        return;
-    }
+    bool start_ok = StartConnection();
     auto a = ui->NameLine;
     connect(ui->NameLine, &QLineEdit::returnPressed, this, &MainWindow::on_nameLine_returnPressed1st);
     CRH = new ReadRoutineHandler(this, socket);
-    CRH->startThread();
+    if(start_ok){
+        CRH->startThread();
+    }
+    else QMessageBox::warning(this, "ACHTUNG!", "Server error: could not connect.\nTry reopening app once we reanimate the server!");
 }
 
 bool MainWindow::StartConnection(){
