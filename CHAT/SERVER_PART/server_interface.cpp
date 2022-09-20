@@ -3,9 +3,12 @@
 #include <filesystem>
 #include <sys/socket.h>
 
-std::unordered_map<std::string, std::pair<std::unordered_set<int>, chat_pipe>> chats;
+std::unordered_map<std::string, chat_info> chats;
 std::unordered_map<int, std::string> user_data;
 std::unordered_set<std::string> used_usernames;
+
+int disco_pipe[2], list_chats_pipe[2], username_enter_pipe[2];
+
 
 int server_starting(){
     namespace fs = std::filesystem;
@@ -15,7 +18,8 @@ int server_starting(){
     fs::path path_of_chats(".");
     for (const auto& entry : fs::directory_iterator(path_of_chats)) {
         if (entry.is_regular_file() && fs::path(entry).extension() == ".chat") {
-            chats[fs::path(entry).stem()] = {};
+            // chats[fs::path(entry).stem()];
+            chats[fs::path(entry).stem()].subs = {};
         }
     }
     return 1;
@@ -72,8 +76,8 @@ void send_available_chats(int sockfd){
     server_data_t resp;
     resp.request = c_get_chats;
     resp.responce = s_success;
-    for (auto chat : chats){
-        resp.message_text += chat.first + "\n";
+    for (auto it = chats.begin(); it != chats.end(); ++it){
+        resp.message_text += it->first + "\n";
     }
     send_resp_to_client(&resp, sockfd);
 }

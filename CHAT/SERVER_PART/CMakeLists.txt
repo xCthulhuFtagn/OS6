@@ -4,5 +4,5 @@ project(server)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(server server.cpp server_interface.cpp server_interface.h)
+add_executable(server server.cpp server_interface.cpp server_interface.h server_routines.cpp server_routines.h)
 target_link_libraries(server pthread)

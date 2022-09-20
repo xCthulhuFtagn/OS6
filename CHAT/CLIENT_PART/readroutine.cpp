@@ -76,7 +76,7 @@ bool ReadRoutine::UnblockedReadFromServer(){
                                     emit create_chat(s_d);
                                     break;
                                 case c_connect_chat:
-                                    client_state = in_chat;
+                                    if(s_d.responce == s_success) client_state = in_chat;
                                     emit connect_chat(s_d);
                                     break;
                                 default:

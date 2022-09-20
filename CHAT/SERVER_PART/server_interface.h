@@ -71,6 +71,12 @@ typedef struct{
     int out;
 } chat_pipe;
 
+struct chat_info{
+    std::unordered_set<int> subs;
+    chat_pipe pipe;
+    std::mutex mtx;
+};
+
 int server_starting();
 void server_ending();
 int read_request_from_client(client_data_t* received, int sockfd);

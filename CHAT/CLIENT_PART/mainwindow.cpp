@@ -16,13 +16,18 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     socket = new QTcpSocket(this);
     bool start_ok = StartConnection();
-    auto a = ui->NameLine;
     connect(ui->NameLine, &QLineEdit::returnPressed, this, &MainWindow::on_nameLine_returnPressed1st);
     CRH = new ReadRoutineHandler(this, socket);
     if(start_ok){
         CRH->startThread();
     }
     else QMessageBox::warning(this, "ACHTUNG!", "Server error: could not connect.\nTry reopening app once we reanimate the server!");
+
+}
+
+void MainWindow::on_serverDown(){
+    QMessageBox::warning(this, "ACHTUNG!", "Server is down, try reconnecting later");
+    this->close();
 }
 
 bool MainWindow::StartConnection(){
@@ -31,6 +36,7 @@ bool MainWindow::StartConnection(){
     connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
     if(socket->waitForConnected(3000)){
         qDebug() << "Connected!";
+        connect(socket, &QTcpSocket::disconnected, this, &MainWindow::on_serverDown);
         return true;
     }
     else{
