@@ -226,7 +226,7 @@ void list_of_chats(int end_to_read_from) {
                             if(start_ok){
                                 chats.at(received.message_text).subs.insert(client_sockfd);
                                 resp.responce = s_success;
-                                resp.message_text = "";
+                                resp.message_text = received.message_text;
                                 clients_without_chat.erase(client_sockfd);
                                 send_resp_to_client(&resp, client_sockfd);
                                 std::cout << "sending fd to " << received.message_text << std::endl;

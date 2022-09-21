@@ -14,6 +14,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    MainWindow::setWindowTitle("Chat");
     socket = new QTcpSocket(this);
     bool start_ok = StartConnection();
     connect(ui->NameLine, &QLineEdit::returnPressed, this, &MainWindow::on_nameLine_returnPressed1st);
@@ -36,7 +37,7 @@ bool MainWindow::StartConnection(){
     connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
     if(socket->waitForConnected(3000)){
         qDebug() << "Connected!";
-        connect(socket, &QTcpSocket::disconnected, this, &MainWindow::on_serverDown);
+        connect(socket, &QTcpSocket::errorOccurred, this, &MainWindow::on_serverDown);
         return true;
     }
     else{
@@ -47,6 +48,7 @@ bool MainWindow::StartConnection(){
 
 void MainWindow::show_chats(const std::string& chat_list){
     //deleting start ui
+    MainWindow::setWindowTitle("Chat");
     SafeCleaning(ui->verticalLayout->layout());
     //creating mid ui
     QLineEdit* NewChatLine = new QLineEdit();
@@ -94,7 +96,6 @@ void MainWindow::on_nameLine_returnPressed2nd(server_data_t s_message){
     if(s_message.responce == s_failure){
         QMessageBox::warning(this, "ACHTUNG!","This username is already used!");
     }
-//    else CRH->chat_proc->client_state = no_chat;
 }
 
 void MainWindow::list_of_chats(server_data_t s_message){
@@ -102,7 +103,6 @@ void MainWindow::list_of_chats(server_data_t s_message){
         QMessageBox::warning(this, "ACHTUNG!", "Could not get list of chats");
     }
     else{
-//        CRH->chat_proc->client_state = no_chat;
         show_chats(s_message.message_text);
     }
 }
@@ -116,8 +116,8 @@ void MainWindow::on_chatButton_Clicked1st(){
 
 void MainWindow::on_chatButton_Clicked2nd(server_data_t s_message){
         if(s_message.responce == s_success){
-//            CRH->chat_proc->client_state = in_chat;
             SafeCleaning(ui->verticalLayout->layout());
+            MainWindow::setWindowTitle("Chat: " + QString::fromStdString(s_message.message_text));
             QPushButton* LeaveButton = new QPushButton("Leave chat");
             connect(LeaveButton, &QPushButton::clicked, this, &MainWindow::on_leaveChat1st);
             QListWidget* QLW = new QListWidget();
@@ -164,7 +164,6 @@ void MainWindow::on_leaveChat1st(){
     c_message.request = c_leave_chat;
     c_message.message_text = "";
     SendToServer(socket, &c_message);
-//    CRH->chat_proc->client_state = no_chat;
 }
 
 void MainWindow::on_sendMessage(){
