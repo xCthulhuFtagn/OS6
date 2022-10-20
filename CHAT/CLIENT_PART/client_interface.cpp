@@ -1,12 +1,12 @@
 #include "client_interface.h"
 
 bool SendToServer(QTcpSocket* socket, client_data_t* c_d){
-    int written = socket->write(QByteArray::fromRawData((char*)(&c_d->request), sizeof(client_request_e))); //writes by using this bullshit interface
+    int written = socket->write(QByteArray::fromRawData((char*)(&c_d->request), sizeof(client_request_e)));
     if (written < 0) return false;
     size_t tmp = c_d->message_text.size();
-    written = socket->write(QByteArray::fromRawData((char*)(&tmp), sizeof(size_t))); //writes by using this bullshit interface
+    written = socket->write(QByteArray::fromRawData((char*)(&tmp), sizeof(size_t)));
     if (written < 0) return false;
-    written = socket->write(QByteArray::fromRawData((char*)(c_d->message_text.c_str()), c_d->message_text.size())); //writes by using this bullshit interface
+    written = socket->write(QByteArray::fromRawData((char*)(c_d->message_text.c_str()), c_d->message_text.size()));
     if (written < 0) return false;
     qDebug() << "Written a message to server";
     return true;
@@ -15,9 +15,10 @@ bool SendToServer(QTcpSocket* socket, client_data_t* c_d){
 int BlockedRead(char* object, size_t length, QTcpSocket* socket) {
     ssize_t err;
     size_t off = 0;
+    socket->waitForReadyRead(10);
     while ((err = socket->read(object + off, length - off)) >= 0) {
         if (off == length) return 0;
-        socket->waitForReadyRead(100);
+        socket->waitForReadyRead(10);
         off += err;
     }
     return err;
@@ -38,9 +39,7 @@ bool ReadFromServer(QTcpSocket* socket, server_data_t* s_d){
 void SafeCleaning(QLayout* layout) {
     QLayoutItem *wItem;
     while ((wItem = layout->takeAt(0)) != 0) {
-        wItem->widget()->disconnect();
-        wItem->widget()->deleteLater();
-//        delete wItem->widget();
+        if(wItem->widget()) wItem->widget()->deleteLater();
         delete wItem;
     }
 }

@@ -8,18 +8,21 @@
 #define MAX_NAME_LEN 32
 
 typedef enum {
-    c_get_available_chats = 0,
+    c_set_name = 0,
     c_create_chat,
     c_connect_chat,
     c_send_message,
     c_leave_chat,
-    c_disconnect
+    c_disconnect,
+    c_receive_message,
+    c_wrong_request,
+    c_get_chats
 } client_request_e;
 
 typedef enum {
     s_success = 0,
     s_failure,
-    s_new_message
+    // s_new_message
 } server_responce_e;
 
 typedef struct {
@@ -28,6 +31,7 @@ typedef struct {
 } client_data_t;
 
 typedef struct {
+    client_request_e request;
     server_responce_e responce;
     std::string message_text;
 } server_data_t;

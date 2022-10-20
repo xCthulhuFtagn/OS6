@@ -33,6 +33,7 @@
 #include <atomic>
 #include <algorithm>
 #include <list>
+#include <fstream>
 
 #define TIMEOUT_MICRO 1000
 
@@ -42,13 +43,16 @@ typedef enum {
     c_connect_chat,
     c_send_message,
     c_leave_chat,
-    c_disconnect
+    c_disconnect,
+    c_receive_message,
+    c_wrong_request,
+    c_get_chats
 } client_request_e;
 
 typedef enum {
     s_success = 0,
     s_failure,
-    s_new_message
+    // s_new_message
 } server_responce_e;
 
 typedef struct {
@@ -57,6 +61,7 @@ typedef struct {
 } client_data_t;
 
 typedef struct {
+    client_request_e request;
     server_responce_e responce;
     std::string message_text;
 } server_data_t;
@@ -65,6 +70,12 @@ typedef struct{
     int in;
     int out;
 } chat_pipe;
+
+struct chat_info{
+    std::unordered_set<int> subs;
+    chat_pipe pipe;
+    std::mutex mtx;
+};
 
 int server_starting();
 void server_ending();

@@ -4,7 +4,7 @@
 #include <QMainWindow>
 #include <QTcpSocket>
 #include "client_interface.h"
-#include "chatroutine.h"
+#include "readroutine.h"
 #include <QMessageBox>
 #include <QStandardItemModel>
 
@@ -18,25 +18,32 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    std::atomic_int client_state;
 
 public slots:
+    void on_nameLine_returnPressed2nd(server_data_t);
+    void on_chatButton_Clicked2nd(server_data_t);
+    void on_createChat2nd(server_data_t);
     void on_newMessage(std::string&);
+    void on_serverDown();
+//    void on_leaveChat2nd(server_data_t);
+    void list_of_chats(server_data_t s_message);
+    void show_chats(const std::string&);
 
 private slots:
-    void on_NameLine_returnPressed();
-    void on_ChatButton_Clicked();
-    void on_createChat();
-    void on_leaveChat();
+    void on_nameLine_returnPressed1st();
+    void on_chatButton_Clicked1st();
+    void on_createChat1st();
+    void on_leaveChat1st();
     void on_sendMessage();
 
 private:
     Ui::MainWindow *ui;
     QTcpSocket *socket;
-    ChatRoutineHandler* CRH;
+    ReadRoutineHandler* CRH;
     QStandardItemModel* model;
-    void GetAvailableChats();
-    void StartConnection();
-    client_data_t* c_message;
-    server_data_t* s_message;
+    bool StartConnection();
+    server_data_t s_message;
+    client_data_t c_message;
 };
 #endif // MAINWINDOW_H
