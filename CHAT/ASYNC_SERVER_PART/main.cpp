@@ -18,7 +18,7 @@ namespace {
 
 // Запускает функцию fn на n потоках, включая текущий
 template <typename Fn>
-void RunWorkers(unsigned n, const Fn& fn) {
+void RunThreads(unsigned n, const Fn& fn) {
     n = std::max(1u, n);
     std::vector<std::jthread> workers;
     workers.reserve(n - 1);
@@ -37,9 +37,6 @@ int main(int argc, const char* argv[]) {
         return EXIT_FAILURE;
     }
     try {
-        // 1. Загружаем карту из файла и построить модель игры
-        model::Game game = json_loader::LoadGame(argv[1]);
-
         // 2. Инициализируем io_context
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
@@ -53,7 +50,7 @@ int main(int argc, const char* argv[]) {
             }
         });
         // 4. Создаём обработчик HTTP-запросов и связываем его с моделью игры
-        http_handler::RequestHandler handler{game};
+        http_handler::RequestHandler handler{};
 
         // 5. Запустить обработчик HTTP-запросов, делегируя их обработчику запросов
         constexpr net::ip::port_type port = 8080;
@@ -66,7 +63,7 @@ int main(int argc, const char* argv[]) {
         std::cout << "Server has started..."sv << std::endl;
 
         // 6. Запускаем обработку асинхронных операций
-        RunWorkers(std::max(1u, num_threads), [&ioc] {
+        RunThreads(std::max(1u, num_threads), [&ioc] {
             ioc.run();
         });
     } catch (const std::exception& ex) {

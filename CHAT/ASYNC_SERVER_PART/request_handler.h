@@ -26,9 +26,7 @@ StringResponse MakeStringResponse(http::status status, std::string_view body, un
 
 class RequestHandler {
 public:
-    explicit RequestHandler(model::Game& game)
-        : game_{game} {
-    }
+    explicit RequestHandler() {}
 
     RequestHandler(const RequestHandler&) = delete;
     RequestHandler& operator=(const RequestHandler&) = delete;

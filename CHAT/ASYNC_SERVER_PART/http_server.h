@@ -17,6 +17,35 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 namespace sys = boost::system;
 
+typedef enum {
+    c_set_name = 0,
+    c_create_chat,
+    c_connect_chat,
+    c_send_message,
+    c_leave_chat,
+    c_disconnect,
+    c_receive_message,
+    c_wrong_request,
+    c_get_chats
+} client_request_e;
+
+typedef enum {
+    s_success = 0,
+    s_failure,
+    // s_new_message
+} server_responce_e;
+
+typedef struct {
+    client_request_e request;
+    std::string message_text;
+} client_data_t;
+
+typedef struct {
+    client_request_e request;
+    server_responce_e responce;
+    std::string message_text;
+} server_data_t;
+
 void ReportError(beast::error_code ec, std::string_view what);
 
 class SessionBase {
@@ -114,10 +143,10 @@ private:
 
 class ChatManager{
 public:
-    ChatManager(net::io_context& io_) : io_(io){}
+    ChatManager(net::io_context&); // fill io_ var + initialise map of chats with {name : nullptr}
 
-    Chat* ConnectChat(std::string);
-    Chat* CreateChat(std::string);
+    Chat* ConnectChat(std::string); // if chats_[name] == nullptr -> new Chat
+    Chat* CreateChat(std::string); // if chats[name]->subs.empty() -> delete Chat -> chats[name] = nullptr
     bool LeaveChat(std::string);
     
 private:
