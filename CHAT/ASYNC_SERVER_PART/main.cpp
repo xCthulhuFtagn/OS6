@@ -55,7 +55,7 @@ int main(int argc, const char* argv[]) {
         // 5. Запустить обработчик HTTP-запросов, делегируя их обработчику запросов
         constexpr net::ip::port_type port = 8080;
         const auto address = net::ip::tcp::endpoint(net::ip::tcp::v4(), port).address();
-        http_server::ServeHttp(ioc, {address, port}, [&handler](auto&& req, auto&& send) {
+        http_server::ServeRequest(ioc, {address, port}, [&handler](auto&& req, auto&& send) {
             handler(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
         });
 

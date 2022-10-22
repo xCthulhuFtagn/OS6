@@ -135,7 +135,7 @@ void Listener::AsyncRunSession(tcp::socket&& socket) {
 }
 
 template <typename RequestHandler>
-void ServeHttp(net::io_context& ioc, const tcp::endpoint& endpoint, RequestHandler&& handler) {
+void ServeRequest(net::io_context& ioc, const tcp::endpoint& endpoint, RequestHandler&& handler) {
     // При помощи decay_t исключим ссылки из типа RequestHandler,
     // чтобы Listener хранил RequestHandler по значению
     using MyListener = Listener<std::decay_t<RequestHandler>>;

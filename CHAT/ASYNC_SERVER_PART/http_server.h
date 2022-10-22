@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <vector>
+#include <memory>
 //
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/strand.hpp>
@@ -143,19 +144,19 @@ private:
 
 class ChatManager{
 public:
-    ChatManager(net::io_context&); // fill io_ var + initialise map of chats with {name : nullptr}
+    ChatManager(net::io_context&); 
 
-    Chat* ConnectChat(std::string); // if chats_[name] == nullptr -> new Chat
-    Chat* CreateChat(std::string); // if chats[name]->subs.empty() -> delete Chat -> chats[name] = nullptr
+    std::shared_ptr<Chat> ConnectChat(std::string);
+    std::shared_ptr<Chat> CreateChat(std::string);
     bool LeaveChat(std::string);
     
 private:
-    std::unordered_map<std::string, Chat*> chats_;
+    std::unordered_map<std::string, std::weak_ptr<Chat>> chats_; // последовательное обращение к отдельным элементам (weak_ptr::expired?)
     net::io_context& io_;
     net::strand<net::io_context::executor_type> strand_{net::make_strand(io_)};
 };
 
 template <typename RequestHandler>
-void ServeHttp(net::io_context& ioc, const tcp::endpoint& endpoint, RequestHandler&& handler);
+void ServeRequest(net::io_context& ioc, const tcp::endpoint& endpoint, RequestHandler&& handler);
 
 }  // namespace http_server
