@@ -1,12 +1,9 @@
-#include "sdk.h"
-//
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
 
 #include <iostream>
 #include <thread>
 
-#include "json_loader.h"
 #include "request_handler.h"
 
 using namespace std::literals;
@@ -50,12 +47,12 @@ int main(int argc, const char* argv[]) {
             }
         });
         // 4. Создаём обработчик HTTP-запросов и связываем его с моделью игры
-        http_handler::RequestHandler handler{};
+        handler::RequestHandler handler{};
 
         // 5. Запустить обработчик HTTP-запросов, делегируя их обработчику запросов
         constexpr net::ip::port_type port = 8080;
         const auto address = net::ip::tcp::endpoint(net::ip::tcp::v4(), port).address();
-        http_server::ServeRequest(ioc, {address, port}, [&handler](auto&& req, auto&& send) {
+        server::ServeRequest(ioc, {address, port}, [&handler](auto&& req, auto&& send) {
             handler(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
         });
 
