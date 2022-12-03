@@ -1,8 +1,11 @@
 #pragma once
 
+#include <ios>
+#include <string>
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <filesystem>
 //
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/strand.hpp>
@@ -18,7 +21,7 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 namespace sys = boost::system;
 
-typedef enum {
+enum class client_request_e {
     c_set_name = 0,
     c_create_chat,
     c_connect_chat,
@@ -28,7 +31,7 @@ typedef enum {
     c_receive_message,
     c_wrong_request,
     c_get_chats
-} client_request_e;
+};
 
 typedef enum {
     s_success = 0,
@@ -75,7 +78,6 @@ private:
 
     virtual std::shared_ptr<SessionBase> GetSharedThis() = 0;
 
-    // tcp_stream содержит внутри себя сокет и добавляет поддержку таймаутов
     boost::asio::ip::tcp::socket socket_;
     client_data_t request_;
 };
@@ -174,34 +176,30 @@ private:
     RequestHandler request_handler_;
 };
 
-// class Chat : std::enable_shared_from_this<Chat>{
-// public:
-//     Chat(std::string name, net::io_context& io) : chat_name(name), io_(io){}
-//     void Enter();
-//     void SendMessage();
-//     void Leave();
-
-// private:
-//     void OnEnter();
-//     void OnLeave();
-//     std::vector<tcp::socket> subs_;
-//     std::string name_;
-//     net::io_context& io_;
-//     net::strand<net::io_context::executor_type> strand_{net::make_strand(io_)};
-// };
+struct Chat{
+    Chat(net::io_context& io) : strand(net::make_strand(io)){}
+    Chat() = delete;
+    net::strand<net::io_context::executor_type> strand;
+    std::unordered_map<std::string, tcp::socket*> users;
+    std::unordered_map<std::string, std::streamoff> messages_offset;
+};
 
 class ChatManager{
 public:
-    ChatManager(net::io_context&); 
+    ChatManager(net::io_context&, std::string);
 
-    bool ConnectChat(std::string);
-    bool CreateChat(std::string);
-    bool LeaveChat(std::string);
+    bool ConnectChat(const std::string&, const std::string&, tcp::socket*);
+    bool CreateChat(const std::string&);
+    bool LeaveChat(const std::string&, const std::string&);
+    void SendMessage(const std::string&, const std::string&, const std::string&);
     
 private:
-    std::unordered_map<std::string, net::strand<net::io_context::executor_type>> chats_; // последовательное обращение к отдельным элементам (weak_ptr::expired?)
+    void OnMessageSent(boost::system::error_code&, std::size_t);
+
+    std::unordered_map<std::string, Chat> chats_; // последовательное обращение к отдельным элементам
     net::io_context& io_;
-    net::strand<net::io_context::executor_type> strand_{net::make_strand(io_)};
+    net::strand<net::io_context::executor_type> chats_strand_, usernames_strand_;
+    std::filesystem::path path_of_chats;
 };
 
 template <typename RequestHandler>
