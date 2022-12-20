@@ -34,11 +34,11 @@ int main(int argc, const char* argv[]) {
         return EXIT_FAILURE;
     }
     try {
-        // 2. Инициализируем io_context
+        // 1. Инициализируем io_context
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
 
-        // 3. Добавляем асинхронный обработчик сигналов SIGINT и SIGTERM
+        // 2. Добавляем асинхронный обработчик сигналов SIGINT и SIGTERM
         net::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
             if (!ec) {
@@ -46,14 +46,15 @@ int main(int argc, const char* argv[]) {
                 ioc.stop();
             }
         });
-        // 4. Создаём обработчик HTTP-запросов и связываем его с моделью игры
-        handler::RequestHandler handler{};
+        // 3. Создаём обработчик клиентских запросов и связываем его с менеджером чатов
+        server::ChatManager<std::function<void(server::server_data_t&&)>> new_manager(ioc, "./chats");
+        handler::RequestHandler handler(std::move(new_manager));
 
-        // 5. Запустить обработчик HTTP-запросов, делегируя их обработчику запросов
+        // 4. Запускаем обработку запросов, делегируя их обработчику запросов
         constexpr net::ip::port_type port = 8080;
         const auto address = net::ip::tcp::endpoint(net::ip::tcp::v4(), port).address();
-        server::ServeRequest(ioc, {address, port}, [&handler](auto&& req, auto&& send) {
-            handler(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
+        server::ServeRequest(ioc, {address, port}, [&handler](auto&& req, auto&& state, auto&& send) {
+            handler(std::forward<decltype(req)>(req), std::forward<decltype(state)>(state), std::forward<decltype(send)>(send));
         });
 
         // Эта надпись сообщает тестам о том, что сервер запущен и готов обрабатывать запросы

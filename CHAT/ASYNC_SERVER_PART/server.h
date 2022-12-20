@@ -1,11 +1,15 @@
 #pragma once
 
 #include <ios>
+#include <fstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <memory>
 #include <filesystem>
+#include <functional>
+#include <any>
 //
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/strand.hpp>
@@ -53,6 +57,11 @@ public:
 
 void ReportError(beast::error_code ec, std::string_view what);
 
+enum class client_state{
+    no_name = 0,
+    list_chats,
+    in_chat
+};
 class SessionBase {
 public: 
     // Запрещаем копирование и присваивание объектов SessionBase и его наследников
@@ -66,6 +75,8 @@ protected:
     : socket_(std::move(socket)) {}
 
     void Write(server_data_t&& response);
+
+    client_state state_ = client_state::no_name;
 private:
 
     void Read();
@@ -100,9 +111,11 @@ private:
         // Захватываем умный указатель на текущий объект Session в лямбде,
         // чтобы продлить время жизни сессии до вызова лямбды.
         // Используется generic-лямбда функция, способная принять response произвольного типа
-        request_handler_(std::move(request), [self = this->shared_from_this()](auto&& response) {
-            self->Write(std::move(response));
-        });
+        request_handler_(std::move(request), std::move(state_), 
+            [self = this->shared_from_this()](auto&& response) {
+                self->Write(std::move(response));
+            }
+        );
     }
 
     RequestHandler request_handler_;
@@ -180,26 +193,173 @@ struct Chat{
     Chat(net::io_context& io) : strand(net::make_strand(io)){}
     Chat() = delete;
     net::strand<net::io_context::executor_type> strand;
-    std::unordered_map<std::string, tcp::socket*> users;
+    std::unordered_map<std::string, std::any> users;
     std::unordered_map<std::string, std::streamoff> messages_offset;
 };
 
+template <typename Send>
 class ChatManager{
 public:
-    ChatManager(net::io_context&, std::string);
+    ChatManager(net::io_context& io, std::string path) : io_(io), chats_strand_(net::make_strand(io)), usernames_strand_(net::make_strand(io)), path_of_chats(path.data()){
+        namespace fs = std::filesystem;
+        for (const auto& entry : fs::directory_iterator(path_of_chats)) {
+            if (entry.is_regular_file() && fs::path(entry).extension() == ".chat") {
+                Chat new_chat(io);
+                chats_.insert({fs::path(entry).stem().string(), new_chat});
+            }
+        }
+    }
 
-    bool ConnectChat(const std::string&, const std::string&, tcp::socket*);
-    bool CreateChat(const std::string&);
-    bool LeaveChat(const std::string&, const std::string&);
-    void SendMessage(const std::string&, const std::string&, const std::string&);
+    bool SetName(const std::string& name){
+        bool result;
+        net::dispatch(usernames_strand_, [usedUsernames = &used_usernames, &name, &result]{
+            if(usedUsernames->contains(name)) result = false;
+            else{
+                usedUsernames->insert(name);
+                result = true;
+            }
+        });
+        return result;
+    }
+
+    std::string ChatList(){
+        std::string ans;
+        net::dispatch(chats_strand_, [chats = &chats_, &ans]{
+            for(auto chat : *chats) ans += chat.first + "\n";
+        });
+        return ans;
+    }
+
+    void Disconnect(const std::string& name, std::string chat_name = ""){
+        net::dispatch(chats_strand_, [chats = &chats_, users = &used_usernames, &name, &chat_name]{
+            if(!chat_name.empty()){
+                net::dispatch(chats->at(chat_name).strand, [&chats, &name, &chat_name]{
+                    chats->at(chat_name).messages_offset.erase(name);
+                    chats->at(chat_name).users.erase(name);
+                });
+            }
+            users->erase(name);
+        });
+
+    }
+
+    void ConnectChat(const std::string& chat_name, const std::string& user_name, Send& send){ //Sends everything the client needs, including success or failure notification
+        net::dispatch(chats_strand_, 
+            [&chat_name, &user_name, chats = &chats_, &send, this]{
+                server_data_t resp;
+                resp.message_text = "";
+                resp.request = client_request_e::c_connect_chat;
+
+                if(!chats->contains(chat_name) || (*chats).at(chat_name).users.contains(user_name)) {
+                    resp.responce = server_responce_e::s_failure;
+                    std::any_cast<Send>(chats->at(chat_name).users[user_name])(std::move(resp)); // invoking saved method to inform client that the chat failed to connect
+                    return;
+                } 
+                
+                (*chats).at(chat_name).users[user_name] = send;
+
+                resp.responce = server_responce_e::s_success;
+                std::any_cast<Send>(chats->at(chat_name).users[user_name])(std::move(resp)); // invoking saved method to inform client that the chat is connected RN
+
+                std::fstream chat_file(chat_name + ".chat");
+                chat_file.seekp(0, chat_file.end);
+                auto file_size = chat_file.tellp();
+
+                std::streamoff off = 0;
+                chat_file.seekg(off, chat_file.beg);
+
+                while (off != file_size) {
+                    resp.request = client_request_e::c_receive_message; // now we change the request that we are serving because we did connect to chat
+                    std::getline(chat_file, resp.message_text, '\r');
+                    off = chat_file.tellp();
+                    std::any_cast<Send>(chats->at(chat_name).users[user_name])(std::move(resp)); // invoking saved method to send all unread chat messages to connected user 
+                }
+                (*chats).at(chat_name).messages_offset[user_name] = off;
+            }
+        );        
+    }
+
+    bool CreateChat(const std::string& name){
+        bool result;
+        net::dispatch(chats_strand_, 
+            [&result, &name, chats = &chats_, io = &io_]{
+                if(chats->contains(name)){
+                    result = false;
+                    return;
+                }
+                Chat new_chat(*io);
+                chats->insert({name, new_chat});
+                result = true;
+                return;
+            }
+        );
+        return result;
+    }
+
+    bool LeaveChat(const std::string& chat_name, const std::string& user_name){
+        bool result;
+        net::dispatch(chats_strand_, 
+            [&result, &chat_name, chats = &chats_, &user_name]{
+                if(!chats->contains(chat_name) || !chats->at(chat_name).users.contains(user_name)){
+                    result = false;
+                    return;
+                }
+
+                chats->at(chat_name).users.erase(user_name);
+                chats->at(chat_name).messages_offset.erase(user_name);
+                result = true;
+                return;
+            }
+        );
+        return result;
+    }
+
+    void SendMessage(const std::string& chat_name, const std::string& message, const std::string& user_name){ // this one actually sends messages by itself
+        net::dispatch(chats_.at(chat_name).strand, 
+            [&chat_name, &message, &user_name, chats = &chats_, this]{
+                if(chats->contains(chat_name)){
+                    std::fstream chat_file(chat_name + ".chat");
+
+                    if(chats->at(chat_name).users.contains(user_name)){
+
+                        chat_file << user_name << "\t";
+                        
+                        time_t curr_time;
+                        tm * curr_tm;
+                        std::string timedate;
+                        timedate.reserve(100);
+                        time(&curr_time);
+                        curr_tm = localtime(&curr_time);
+                        strftime(timedate.data(), 99, "%T %D", curr_tm);
+
+                        chat_file.write(timedate.c_str(), timedate.length());
+                        chat_file << std::endl << message << "\r";
+
+                    }
+                    auto file_size = chat_file.tellp();
+                    for(auto& [name, off] : chats->at(chat_name).messages_offset){
+                        chat_file.seekg(off, chat_file.beg);
+                        while(off != file_size){
+                            server_data_t resp;
+                            resp.request = client_request_e::c_receive_message;
+                            std::getline(chat_file, resp.message_text, '\r');
+                            off = chat_file.tellp();
+                            std::any_cast<Send>(chats->at(chat_name).users[name])(std::move(resp));
+                        }
+                    }
+                }
+
+            }
+        );
+    }
     
 private:
-    void OnMessageSent(boost::system::error_code&, std::size_t);
 
-    std::unordered_map<std::string, Chat> chats_; // последовательное обращение к отдельным элементам
+    std::unordered_map<std::string, Chat> chats_; // чаты с соответствующими объектам сессий функциями отправки, ппц (мб поработать над не напрямую прописанными типами функции)
     net::io_context& io_;
     net::strand<net::io_context::executor_type> chats_strand_, usernames_strand_;
     std::filesystem::path path_of_chats;
+    std::unordered_set<std::string> used_usernames;
 };
 
 template <typename RequestHandler>
