@@ -29,10 +29,6 @@ void RunThreads(unsigned n, const Fn& fn) {
 }  // namespace
 
 int main(int argc, const char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: game_server <game-config-json>"sv << std::endl;
-        return EXIT_FAILURE;
-    }
     try {
         // 1. Инициализируем io_context
         const unsigned num_threads = std::thread::hardware_concurrency();
@@ -42,7 +38,7 @@ int main(int argc, const char* argv[]) {
         net::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
             if (!ec) {
-                std::cout << "Signal "sv << signal_number << " received"sv << std::endl;
+                std::cout << std::endl << "Signal "sv << signal_number << " received"sv << std::endl;
                 ioc.stop();
             }
         });
@@ -51,7 +47,7 @@ int main(int argc, const char* argv[]) {
         handler::RequestHandler handler(std::move(new_manager));
 
         // 4. Запускаем обработку запросов, делегируя их обработчику запросов
-        constexpr net::ip::port_type port = 8080;
+        constexpr net::ip::port_type port = 5000;
         const auto address = net::ip::tcp::endpoint(net::ip::tcp::v4(), port).address();
         server::ServeRequest(ioc, {address, port}, [&handler](auto&& req, auto&& state, auto&& send) {
             handler(std::forward<decltype(req)>(req), std::forward<decltype(state)>(state), std::forward<decltype(send)>(send));

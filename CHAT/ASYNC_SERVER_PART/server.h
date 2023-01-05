@@ -79,7 +79,9 @@ protected:
     client_state state_ = client_state::no_name;
 private:
 
-    void Read();
+    void ReadFirst();
+    void ReadSecond(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read);
+    // void ReadThird(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read);
     void OnRead(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read);
     void OnWrite(beast::error_code ec, [[maybe_unused]] std::size_t bytes_written);
     void Close();
@@ -173,6 +175,10 @@ private:
             return ReportError(ec, "accept"sv);
         }
 
+        // Для того, чтобы подключение произошло
+        // нужно прочитать сначала данные для подтверждения подключения
+        
+
         // Асинхронно обрабатываем сессию
         AsyncRunSession(std::move(socket));
 
@@ -202,6 +208,7 @@ class ChatManager{
 public:
     ChatManager(net::io_context& io, std::string path) : io_(io), chats_strand_(net::make_strand(io)), usernames_strand_(net::make_strand(io)), path_of_chats(path.data()){
         namespace fs = std::filesystem;
+        if(!fs::exists(path_of_chats) || !fs::is_directory(path_of_chats)) fs::create_directory(path_of_chats);
         for (const auto& entry : fs::directory_iterator(path_of_chats)) {
             if (entry.is_regular_file() && fs::path(entry).extension() == ".chat") {
                 Chat new_chat(io);
