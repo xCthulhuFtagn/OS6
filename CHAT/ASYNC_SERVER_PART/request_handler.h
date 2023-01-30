@@ -27,11 +27,12 @@ public:
                 send(std::move(resp));
             }
             else{
-                if(!chatManager.SetName(req.message_text)){
+                if(chatManager.SetName(req.message_text)){
                     userName = req.message_text;
                     resp.message_text = "";
                     resp.responce = server::server_responce_e::s_success;
                     send(std::move(resp));
+                    std::cout << "NAME SET" << std::endl;
                     // then we send available chats!
                     resp.message_text = chatManager.ChatList();
                     resp.responce = server::server_responce_e::s_success;
@@ -77,7 +78,7 @@ public:
             break;
         case server::client_request_e::c_leave_chat:
             if(state != server::client_state::in_chat){
-                resp.message_text = "Cannort leave chat, wrong state!";
+                resp.message_text = "Cannot leave chat, wrong state!";
                 resp.responce = server::server_responce_e::s_failure;
             }
             else if(chatManager.LeaveChat(currentChat, userName)){

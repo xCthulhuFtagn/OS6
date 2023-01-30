@@ -13,8 +13,12 @@
 //
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/strand.hpp>
+#include <boost/asio/placeholders.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
+#include <boost/bind.hpp>
+
+#include <iostream>
 
 namespace server {
 // Разместите здесь реализацию http-сервера, взяв её из задания по разработке асинхронного сервера
@@ -25,7 +29,7 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 namespace sys = boost::system;
 
-enum class client_request_e {
+enum client_request_e {
     c_set_name = 0,
     c_create_chat,
     c_connect_chat,
@@ -62,54 +66,155 @@ enum class client_state{
     list_chats,
     in_chat
 };
-class SessionBase {
-public: 
-    // Запрещаем копирование и присваивание объектов SessionBase и его наследников
-    SessionBase(const SessionBase&) = delete;
-    SessionBase& operator=(const SessionBase&) = delete;
 
-    void Run();
-protected:
-    using HttpRequest = http::request<http::string_body>;
-    explicit SessionBase(tcp::socket&& socket)
-    : socket_(std::move(socket)) {}
-
-    void Write(server_data_t&& response);
-
-    client_state state_ = client_state::no_name;
-private:
-
-    void ReadFirst();
-    void ReadSecond(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read);
-    // void ReadThird(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read);
-    void OnRead(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read);
-    void OnWrite(beast::error_code ec, [[maybe_unused]] std::size_t bytes_written);
-    void Close();
-
-    // Обработку запроса делегируем подклассу
-    virtual void HandleRequest(client_data_t&& request) = 0;
-
-    virtual std::shared_ptr<SessionBase> GetSharedThis() = 0;
-
-    boost::asio::ip::tcp::socket socket_;
-    client_data_t request_;
+enum unblocked_read_state {
+    REQ_TYPE,
+    LENGTH,
+    MESSAGE
 };
 
 template <typename RequestHandler>
-class Session : public SessionBase, public std::enable_shared_from_this<Session<RequestHandler>> {
+class Session : public std::enable_shared_from_this<Session<RequestHandler>> {
 public:
    template <typename Handler>
     Session(tcp::socket&& socket, Handler&& request_handler)
-        : SessionBase(std::move(socket))
+        : socket_(std::move(socket))
         , request_handler_(std::forward<Handler>(request_handler)) {
+            socket_.non_blocking(true);
+    }
+
+    // ~Session(){
+    //   std::cout << "SUSSUS AMOGUS" << std::endl;
+    // }
+
+    void Run() {
+        // Вызываем метод Read, используя executor объекта socket_.
+        // Таким образом вся работа со socket_ будет выполняться, используя его executor
+        net::dispatch(socket_.get_executor(),
+                    beast::bind_front_handler(&Session::TryRead, GetSharedThis()));
     }
 
 private:
-    std::shared_ptr<SessionBase> GetSharedThis() override {
+    boost::asio::ip::tcp::socket socket_;
+    client_data_t request_;
+
+    unblocked_read_state read_state = REQ_TYPE;
+    size_t off = 0; // сдвиг внутри элемента request
+    size_t message_length;
+    client_state state_ = client_state::no_name;
+
+    std::shared_ptr<Session> GetSharedThis() {
         return this->shared_from_this();
     }
 
-    void HandleRequest(client_data_t && request) override {
+    void TryRead(){
+        //if data was received, then the real Read is called
+        socket_.async_wait(tcp::socket::wait_read, 
+            boost::bind(&Session::Read, GetSharedThis(), boost::asio::placeholders::error)
+            //if TryRead is called second time (from Base class) -> virtual function is called -> bruh
+        );
+    }
+
+    void Read(beast::error_code ec){
+        // std::cout << "I am reading!" << std::endl;
+        using namespace std::literals;
+        if(ec){
+            socket_.close(); // if an error occured, then the socket should be closed
+            return ReportError(ec, "read"sv);
+        }
+
+        switch(read_state){
+            case REQ_TYPE:
+                request_ = {};
+                // Чистим request и читаем тип запроса
+                socket_.async_read_some(boost::asio::buffer(&request_.request + off, sizeof(client_request_e) - off),
+                    beast::bind_front_handler(&Session::OnRead, GetSharedThis()));
+                break;
+            case LENGTH:
+                // Читаем длину строки сообщения
+                socket_.async_read_some(boost::asio::buffer(&message_length + off, sizeof(size_t) - off),
+                    beast::bind_front_handler(&Session::OnRead, GetSharedThis()));
+                break;
+            case MESSAGE:
+                // Читаем само сообщение
+                socket_.async_read_some(boost::asio::buffer(request_.message_text.data() + off, message_length - off),
+                    beast::bind_front_handler(&Session::OnRead, GetSharedThis()));
+                break;
+        }
+    }
+
+    void OnRead(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read) { 
+        using namespace std::literals;
+        // if (ec == http::error::end_of_stream) {
+        //     // Нормальная ситуация - клиент закрыл соединение
+        //     return Close();
+        // }
+        if (ec) {
+            socket_.close();
+            return ReportError(ec, "read"sv);
+        }
+
+        off += bytes_read;
+        switch(read_state){
+            case REQ_TYPE:
+                if(off == sizeof(client_request_e)){
+                    read_state = LENGTH;
+                    off = 0;
+                }
+                TryRead();
+                break;
+            case LENGTH:
+                if(off == sizeof(size_t)){
+                    read_state = MESSAGE;
+                    off = 0;
+                }
+                TryRead();
+                break;
+            case MESSAGE:
+            if(off == message_length){
+                    HandleRequest(std::move(request_));
+                    read_state = REQ_TYPE;
+                    off = 0;
+                }
+        }
+    }
+
+    void Write(server_data_t&& response) {
+        // Запись выполняется асинхронно, поэтому response перемещаем в область кучи
+        auto safe_response = std::make_shared<server_data_t>(std::move(response));
+        auto self = GetSharedThis();
+        socket_.async_write_some(boost::asio::buffer((void*)&safe_response->request, sizeof(client_request_e)),
+            [self](beast::error_code ec, std::size_t bytes_written) {
+                // self->OnWrite(ec, bytes_written);
+            }
+        );//sending req_type
+        socket_.async_write_some(boost::asio::buffer((void*)&safe_response->responce, sizeof(server_responce_e)),
+            [self](beast::error_code ec, std::size_t bytes_written) {
+                // self->OnWrite(ec, bytes_written);
+            }
+        );//sending resp_type
+        auto size = std::make_shared<size_t>(safe_response->message_text.size());
+        socket_.async_write_some(boost::asio::buffer((void*)size.get(), sizeof(size_t)),
+            [self](beast::error_code ec, std::size_t bytes_written) {
+                // self->OnWrite(ec, bytes_written);
+            }
+        );//sending size of message
+        socket_.async_write_some(boost::asio::buffer((void*)safe_response->message_text.data(), safe_response->message_text.size()),
+            [self](beast::error_code ec, std::size_t bytes_written) {
+                self->OnWrite(ec, bytes_written);
+            }
+        );//sending the message
+    }
+
+    void OnWrite(beast::error_code ec, [[maybe_unused]] std::size_t bytes_written) {
+        using namespace std::literals;
+        if (ec) return ReportError(ec, "write"sv);
+
+        // Считываем следующий запрос
+        TryRead();
+    }
+
+    void HandleRequest(client_data_t && request) {
         // Захватываем умный указатель на текущий объект Session в лямбде,
         // чтобы продлить время жизни сессии до вызова лямбды.
         // Используется generic-лямбда функция, способная принять response произвольного типа
