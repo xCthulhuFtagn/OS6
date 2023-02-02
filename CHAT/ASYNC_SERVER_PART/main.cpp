@@ -1,3 +1,7 @@
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+#define BOOST_BIND_NO_PLACEHOLDERS
+//defined to get rid of warnings
+
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
 
@@ -9,7 +13,6 @@
 using namespace std::literals;
 namespace net = boost::asio;
 namespace sys = boost::system;
-
 
 namespace {
 

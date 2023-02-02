@@ -27,13 +27,13 @@ public:
                 send(std::move(resp));
             }
             else{
-                if(chatManager.SetName(req.message_text)){
-                    userName = req.message_text;
+                if(chatManager.SetName(req.message_text.data(), send)){
+                    state = server::client_state::list_chats;
                     resp.message_text = "";
                     resp.responce = server::server_responce_e::s_success;
                     send(std::move(resp));
-                    std::cout << "NAME SET" << std::endl;
                     // then we send available chats!
+                    resp.request = server::c_get_chats;
                     resp.message_text = chatManager.ChatList();
                     resp.responce = server::server_responce_e::s_success;
                     send(std::move(resp));
@@ -51,13 +51,15 @@ public:
                 resp.responce = server::server_responce_e::s_failure;
             }
             else{
-                if(!chatManager.CreateChat(req.message_text)){
+                if(!chatManager.CreateChat(req.message_text.data())){
                     resp.message_text = "File with such name already exists";
                     resp.responce = server::server_responce_e::s_failure;
                 }
                 else{
-                    resp.message_text = "";
+                    resp.message_text = chatManager.ChatList();
                     resp.responce = server::server_responce_e::s_success;
+                    // then send everyone out of chat new list
+
                 }
             }
             send(std::move(resp));
@@ -67,33 +69,28 @@ public:
                 resp.message_text = "Cannot connect chat, wrong state!";
                 resp.responce = server::server_responce_e::s_failure;
             }
-            else chatManager.ConnectChat(req.message_text, userName, send);
+            else {
+                chatManager.ConnectChat(req.message_text.data(), send);
+                state = server::client_state::in_chat;
+            }
             break;
         case server::client_request_e::c_send_message:
             if(state != server::client_state::in_chat){
                 resp.message_text = "";
                 resp.responce = server::server_responce_e::s_failure;
             }
-            else chatManager.SendMessage(currentChat, req.message_text, userName);
+            else chatManager.SendMessage(send, req.message_text.data());
             break;
         case server::client_request_e::c_leave_chat:
-            if(state != server::client_state::in_chat){
-                resp.message_text = "Cannot leave chat, wrong state!";
-                resp.responce = server::server_responce_e::s_failure;
-            }
-            else if(chatManager.LeaveChat(currentChat, userName)){
-                resp.message_text = "Failed to leave the chat";
-                resp.responce = server::server_responce_e::s_failure;
-            }
-            else {
-                resp.message_text = "";
-                resp.responce = server::server_responce_e::s_success;
+            if(state == server::client_state::in_chat && chatManager.LeaveChat(send)){
+                // Can leave chat, ok state && could to leave the chat
                 currentChat = "";
+                state = server::client_state::in_chat;
             }
-            send(std::move(resp));
+            //no messages about leaving
             break;
         case server::client_request_e::c_disconnect:
-            chatManager.Disconnect(userName, currentChat); //throws exception if currentChat does not exist
+            chatManager.Disconnect(send); //throws exception if currentChat does not exist ?????????
             break;
         // case server::client_request_e::c_receive_message:
         //     break;
@@ -108,8 +105,8 @@ public:
     }
 private:
     server::ChatManager<Send> chatManager;
-    std::string currentChat = "";
-    std::string userName;
+    // std::string currentChat = "";
+    // std::string userName;
 };
 
 }  // namespace handler
