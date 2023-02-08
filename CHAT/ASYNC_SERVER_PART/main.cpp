@@ -1,14 +1,11 @@
-#define BOOST_BIND_GLOBAL_PLACEHOLDERS
-#define BOOST_BIND_NO_PLACEHOLDERS
-//defined to get rid of warnings
-
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
 
 #include <iostream>
 #include <thread>
 
-#include "request_handler.h"
+#include "server.h"
+// #include "request_handler.h"
 
 using namespace std::literals;
 namespace net = boost::asio;
@@ -46,15 +43,16 @@ int main(int argc, const char* argv[]) {
             }
         });
         // 3. Создаём обработчик клиентских запросов и связываем его с менеджером чатов
-        server::ChatManager<std::function<void(server::server_data_t&&)>> new_manager(ioc, "./chats");
-        handler::RequestHandler handler(std::move(new_manager));
+        // server::ChatManager<server::Session<handler::RequestHandler>> new_manager(ioc, "./chats");
+        // auto handler = std::make_shared<handler::RequestHandler>(std::move(new_manager));
 
         // 4. Запускаем обработку запросов, делегируя их обработчику запросов
-        constexpr net::ip::port_type port = 5000;
+        constexpr boost::asio::ip::port_type port = 5000;
         const auto address = net::ip::tcp::endpoint(net::ip::tcp::v4(), port).address();
-        server::ServeRequest(ioc, {address, port}, [&handler](auto&& req, auto&& state, auto&& send) {
-            handler(std::forward<decltype(req)>(req), std::forward<decltype(state)>(state), std::forward<decltype(send)>(send));
-        });
+        net::ip::tcp::endpoint endpoint = {address, port};
+
+        //5. Запускаем серверную обработку запросов
+        server::Server(ioc,  endpoint, "./chats"s).Run();
 
         // Эта надпись сообщает тестам о том, что сервер запущен и готов обрабатывать запросы
         std::cout << "Server has started..."sv << std::endl;

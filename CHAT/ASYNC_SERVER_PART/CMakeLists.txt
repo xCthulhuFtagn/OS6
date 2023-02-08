@@ -17,7 +17,6 @@ find_package(Threads REQUIRED)
 add_executable(async_server 
                     main.cpp 
                     server.cpp 
-                    server.h 
-                    request_handler.h)
+                    server.h )
 
 target_link_libraries(async_server PRIVATE Threads::Threads)
