@@ -52,7 +52,7 @@ int main(int argc, const char* argv[]) {
         net::ip::tcp::endpoint endpoint = {address, port};
 
         //5. Запускаем серверную обработку запросов
-        server::Server(ioc,  endpoint, "./chats"s).Run();
+        std::make_shared<server::Server>(ioc,  endpoint, "./chats"s)->Run();
 
         // Эта надпись сообщает тестам о том, что сервер запущен и готов обрабатывать запросы
         std::cout << "Server has started..."sv << std::endl;
