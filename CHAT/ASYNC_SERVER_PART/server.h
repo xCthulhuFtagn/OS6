@@ -101,42 +101,36 @@ public:
         net::dispatch(socket_.get_executor(), beast::bind_front_handler(&Session::Read, GetSharedThis()));
     }
 
-    void Write(std::vector<server_data_t>&& responses) {
-        auto func = [this] (server_data_t& response, bool use_lambda = false) {
-            auto safe_response = std::make_shared<server_data_t>(std::move(response));
-            write_message_length = response.message_text.size();
-            boost::asio::async_write(socket_, 
-                boost::array<boost::asio::mutable_buffer, 4>({
-                    boost::asio::buffer((void*)&safe_response->request, sizeof(client_request_e)),
-                    boost::asio::buffer((void*)&safe_response->responce, sizeof(server_responce_e)),
-                    boost::asio::buffer((void*)&write_message_length, sizeof(size_t)),
-                    boost::asio::buffer(safe_response->message_text)
-                }),
-                boost::asio::transfer_all(), 
-                [self = GetSharedThis(), safe_response, use_lambda](beast::error_code ec, std::size_t bytes_written) {
-                        if (use_lambda) self->OnWrite(ec, bytes_written);
-                }
-            );
-        };
-        // Запись выполняется асинхронно, поэтому response перемещаем в область кучи
-        std::for_each(responses.begin(), responses.end() - 1, func);
-        func(responses.back(), true);
+    void WriteKeepState(server_data_t && response){
+        auto safe_response = std::make_shared<server_data_t>(std::move(response));
+        write_message_length = response.message_text.size();
+        boost::asio::async_write(socket_, 
+            boost::array<boost::asio::mutable_buffer, 4>({
+                boost::asio::buffer((void*)&safe_response->request, sizeof(client_request_e)),
+                boost::asio::buffer((void*)&safe_response->responce, sizeof(server_responce_e)),
+                boost::asio::buffer((void*)&write_message_length, sizeof(size_t)),
+                boost::asio::buffer(safe_response->message_text)
+            }),
+            boost::asio::transfer_all(), 
+            [self = GetSharedThis()](beast::error_code ec, std::size_t bytes_written) {}
+        );
+    }
 
-        // socket_.async_write_some(boost::asio::buffer((void*)&safe_response->request, sizeof(client_request_e)),
-        //     [](beast::error_code ec, std::size_t bytes_written) {}
-        // );//sending req_type
-        // socket_.async_write_some(boost::asio::buffer((void*)&safe_response->responce, sizeof(server_responce_e)),
-        //     [](beast::error_code ec, std::size_t bytes_written) {}
-        // );//sending resp_type
-        // auto size = std::make_shared<size_t>(safe_response->message_text.size());
-        // socket_.async_write_some(boost::asio::buffer((void*)size.get(), sizeof(size_t)),
-        //     [](beast::error_code ec, std::size_t bytes_written) {}
-        // );//sending size of message
-        // socket_.async_write_some(boost::asio::buffer((void*)safe_response->message_text.data(), safe_response->message_text.size()),
-        //     [self](beast::error_code ec, std::size_t bytes_written) {
-        //         self->OnWrite(ec, bytes_written);
-        //     }
-        // );//sending the message
+    void Write(server_data_t&& response) {
+        auto safe_response = std::make_shared<server_data_t>(std::move(response));
+        write_message_length = response.message_text.size();
+        boost::asio::async_write(socket_, 
+            boost::array<boost::asio::mutable_buffer, 4>({
+                boost::asio::buffer((void*)&safe_response->request, sizeof(client_request_e)),
+                boost::asio::buffer((void*)&safe_response->responce, sizeof(server_responce_e)),
+                boost::asio::buffer((void*)&write_message_length, sizeof(size_t)),
+                boost::asio::buffer(safe_response->message_text)
+            }),
+            boost::asio::transfer_all(), 
+            [self = GetSharedThis(), safe_response](beast::error_code ec, std::size_t bytes_written) {
+                self->OnWrite(ec, bytes_written);
+            }
+        );
     }
 
 private:
@@ -145,7 +139,6 @@ private:
     RequestHandlerBase<std::shared_ptr<Session>>* request_handler_;
 
     unblocked_read_state read_state = REQ_TYPE;
-    //size_t off = 0; // сдвиг внутри элемента request
     size_t read_message_length, write_message_length;
     client_state state_ = client_state::no_name;
 
@@ -195,8 +188,8 @@ struct Chat{
     Chat(net::io_context& io, const std::filesystem::path& chat_path) : strand(net::make_strand(io)), path(chat_path){}
     // Chat() = delete; //
 
-    void AddUser(Session* session_ptr){
-        net::dispatch(strand, [&session_ptr, this]{
+    void AddUser(Session* session_ptr, std::string username){
+        net::dispatch(strand, [&session_ptr, &username, this]{
 
             messages_offset.insert({session_ptr, 0});
 
@@ -214,25 +207,69 @@ struct Chat{
                 resp.request = client_request_e::c_receive_message; // now we change the request that we are serving because we did connect to chat
                 std::getline(chat_file, resp.message_text, '\r');
                 off = chat_file.tellp();
-                session_ptr->Write(std::move(std::vector{resp})); // invoking saved method to send all unread chat messages to connected user 
+                if(off != file_size) session_ptr->WriteKeepState(std::move(resp));
+                else session_ptr->Write(std::move(resp));
+                // invoking saved method to send all unread chat messages to connected user
             }
 
             messages_offset[session_ptr] = off;
+            usernames[session_ptr] = username;
         });
     }
 
     void DeleteUser(Session* session_ptr){
         net::dispatch(strand, [&session_ptr, this](){
             messages_offset.erase(session_ptr);
+            usernames.erase(session_ptr);
         });
     }
 
-    void SendMessage(Session* session_ptr, std::string message){
-        //
+    void SendMessage(std::string message, Session* session_ptr){
+        net::dispatch(strand, [&message, session_ptr, this]{
+            // std::fstream chat_file(usr->chat_name + ".chat");
+            if(messages_offset.contains(session_ptr)){
+                std::fstream chat_file(path);
+
+                chat_file << usernames[session_ptr] << "\t";
+                
+                time_t curr_time;
+                tm * curr_tm;
+                std::string timedate;
+                timedate.reserve(100);
+                time(&curr_time);
+                curr_tm = localtime(&curr_time);
+                strftime(timedate.data(), 99, "%T %D", curr_tm);
+
+                chat_file.write(timedate.c_str(), timedate.length());
+                chat_file << std::endl << message << "\r";
+            
+                auto file_size = chat_file.tellp();
+                for(auto& [usr_ptr, off] : messages_offset){
+                    chat_file.seekg(off, chat_file.beg);
+                    while(off != file_size){
+                        server_data_t resp;
+                        resp.request = client_request_e::c_receive_message;
+                        std::getline(chat_file, resp.message_text, '\r');
+                        off = chat_file.tellp();
+                        if(usr_ptr != session_ptr || off != file_size) usr_ptr->WriteKeepState(std::move(resp));
+                        else usr_ptr->Write(std::move(resp));
+                    }
+                }
+            } 
+        });       
+    }
+
+    bool ContainsUser(Session* session_ptr){
+        bool result;
+        net::dispatch(strand, [&session_ptr, &result, this]{
+            result = messages_offset.count(session_ptr);
+        });
+        return result;
     }
 
     net::strand<net::io_context::executor_type> strand;
     std::unordered_map<Session*, std::streamoff> messages_offset; // 
+    std::unordered_map<Session*, std::string> usernames;
     std::filesystem::path path;
 };
 
@@ -256,19 +293,22 @@ public:
     bool SetName(const std::string& name, Session* session_ptr){
         bool result;
         net::dispatch(usernames_strand_, [this, &name, &result, &session_ptr]{
-            if(users_.contains(session_ptr)) result = false;
-            else{
-                users_.insert({session_ptr, {name, ""}});
-                result = true;
+            for(auto [user_ptr, user] : users_){
+                if(user.name == name){
+                    result = false;
+                    return;
+                }
             }
+            users_.insert({session_ptr, {name, ""}});
+            result = true;
         });
         return result;
     }
 
     std::string ChatList(){
         std::string ans;
-        net::dispatch(chats_strand_, [chats = &chats_, &ans]{
-            for(auto chat : *chats) ans += chat.first + "\n";
+        net::dispatch(chats_strand_, [this, &ans]{
+            for(auto chat : chats_) ans += chat.first + "\n";
         });
         return ans;
     }
@@ -278,8 +318,7 @@ public:
             if(User* usr = IdentifyUser(session_ptr)){
                 //synchronized deletion of the user listing in chat through chat's method
                 if(chats_.contains(usr->chat_name)) {
-                    Chat& cur_chat = chats_.at(usr->chat_name);
-                    cur_chat.DeleteUser(session_ptr);
+                    chats_.at(usr->chat_name).DeleteUser(session_ptr);
                 }
                 //synchronized deletion of the user from the list of users in the system
                 net::dispatch(usernames_strand_, [&]{
@@ -300,14 +339,14 @@ public:
 
                     if(!chats_.contains(chat_name)) {
                         resp.responce = server_responce_e::s_failure;
-                        session_ptr->Write(std::move(std::vector{resp})); // invoking saved method to inform client that the chat failed to connect
+                        session_ptr->Write(std::move(resp)); // invoking saved method to inform client that the chat failed to connect
                         return;
                     } 
                     
                     resp.responce = server_responce_e::s_success;
-                    session_ptr->Write(std::move(std::vector{resp})); // invoking saved method to inform client that the chat is connected RN
+                    session_ptr->Write(std::move(resp)); // invoking saved method to inform client that the chat is connected RN
 
-                    chats_.at(chat_name).AddUser(session_ptr);
+                    chats_.at(chat_name).AddUser(session_ptr, usr->name);
                     
                     //synchronized update of user status
                     net::dispatch(usernames_strand_, [&chat_name, &session_ptr, this]{
@@ -340,7 +379,9 @@ public:
         if(User* usr = IdentifyUser(session_ptr)){
             net::dispatch(chats_strand_, 
                 [&result, this, &usr, &session_ptr]{
-                    if(!chats_.contains(usr->chat_name) || !chats_.at(usr->chat_name).messages_offset.contains(session_ptr)){
+                    if(!chats_.contains(usr->chat_name) || 
+                        !chats_.at(usr->chat_name).ContainsUser(session_ptr)){
+                        
                         result = false;
                     }
                     else{
@@ -355,40 +396,11 @@ public:
 
     void SendMessage(const std::string& message, Session* session_ptr){ // this one actually sends messages by itself
         User* usr = IdentifyUser(session_ptr);
-        if(usr != nullptr && chats_.contains(usr->chat_name)){
-            net::dispatch(chats_.at(usr->chat_name).strand, 
-                [&usr, &message, &session_ptr, this]{
-                    std::fstream chat_file(usr->chat_name + ".chat");
-
-                    if(chats_.at(usr->chat_name).messages_offset.contains(session_ptr)){
-                        chat_file << usr->name << "\t";
-                        
-                        time_t curr_time;
-                        tm * curr_tm;
-                        std::string timedate;
-                        timedate.reserve(100);
-                        time(&curr_time);
-                        curr_tm = localtime(&curr_time);
-                        strftime(timedate.data(), 99, "%T %D", curr_tm);
-
-                        chat_file.write(timedate.c_str(), timedate.length());
-                        chat_file << std::endl << message << "\r";
-                    
-                        auto file_size = chat_file.tellp();
-                        for(auto& [usr_ptr, off] : chats_.at(usr->chat_name).messages_offset){
-                            chat_file.seekg(off, chat_file.beg);
-                            while(off != file_size){
-                                server_data_t resp;
-                                resp.request = client_request_e::c_receive_message;
-                                std::getline(chat_file, resp.message_text, '\r');
-                                off = chat_file.tellp();
-                                usr_ptr->Write(std::move(std::vector{resp}));
-                            }
-                        }
-                    }
-                }
-            );
-        }
+        net::dispatch(chats_strand_, 
+            [this, usr, &message, session_ptr]{
+                if(chats_.contains(usr->chat_name)) chats_.at(usr->chat_name).SendMessage(message, session_ptr);
+            }
+        );
     } 
     
 private:
@@ -428,7 +440,7 @@ public:
             if(state != server::client_state::no_name){
                 resp.message_text = "Cannot set name twice!";
                 resp.responce = server::server_responce_e::s_failure;
-                session_ptr->Write(std::move(std::vector{resp}));
+                session_ptr->Write(std::move(resp));
             } else {
                 if(chatManager.SetName(req.message_text.data(), session_ptr)){
                     state = server::client_state::list_chats;
@@ -441,14 +453,15 @@ public:
                     second_resp.responce = server::server_responce_e::s_success;
                     second_resp.message_text = chatManager.ChatList();
                     
-                    session_ptr->Write(std::move(std::vector{resp, second_resp}));
+                    session_ptr->WriteKeepState(std::move(resp));
+                    session_ptr->Write(std::move(second_resp));
                     // then we send available chats!
                     // resp.responce = server::server_responce_e::s_success;
                     // session_ptr->Write(std::move({resp}));
                 } else {
                     resp.message_text = "Username is already in use";
                     resp.responce = server::server_responce_e::s_failure;
-                    session_ptr->Write(std::move(std::vector{resp}));
+                    session_ptr->Write(std::move(resp));
                 }
             }
             break;
@@ -469,7 +482,7 @@ public:
 
                 }
             }
-            session_ptr->Write(std::move(std::vector{resp}));
+            session_ptr->Write(std::move(resp));
             break;
         case server::client_request_e::c_connect_chat:
             if(state != server::client_state::list_chats){
@@ -506,7 +519,7 @@ public:
             resp.message_text = "Wrong request";
             resp.request = server::client_request_e::c_wrong_request;
             resp.responce = server::server_responce_e::s_failure;
-            session_ptr->Write(std::move(std::vector{resp}));
+            session_ptr->Write(std::move(resp));
         }
     }
 private:
