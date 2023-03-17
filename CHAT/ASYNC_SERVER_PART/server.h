@@ -431,7 +431,7 @@ private:
     User* IdentifyUser(Session* session_ptr){
         User* usr;
         net::dispatch(usernames_strand_, [this, &usr, &session_ptr]{
-            if(users_.contains(session_ptr)) usr = nullptr;
+            if(!users_.contains(session_ptr)) usr = nullptr;
             else usr = &users_.at(session_ptr);
         });
         return usr;
@@ -472,9 +472,7 @@ public:
                     
                     session_ptr->WriteKeepState(std::move(resp));
                     session_ptr->Write(std::move(second_resp));
-                    // then we send available chats!
-                    // resp.responce = server::server_responce_e::s_success;
-                    // session_ptr->Write(std::move({resp}));
+
                 } else {
                     resp.message_text = "Username is already in use";
                     resp.responce = server::server_responce_e::s_failure;
@@ -540,9 +538,7 @@ public:
     }
 
     void handleDisconnection(Session* session_ptr){
-        try{chatManager.Disconnect(session_ptr);}catch(...){
-            std::cout << "Error happened!";
-        }
+        chatManager.Disconnect(session_ptr);
     }
 private:
     server::ChatManager chatManager;
