@@ -52,10 +52,10 @@ typedef enum {
     // s_new_message
 } server_responce_e;
 
-typedef struct {
+struct client_data_t : public std::enable_shared_from_this<client_data_t>{
     client_request_e request;
     std::vector<char> message_text;
-} client_data_t;
+};
 
 struct server_data_t : public std::enable_shared_from_this<server_data_t>{
     client_request_e request;
@@ -77,15 +77,16 @@ enum unblocked_read_state {
     MESSAGE
 };
 
-template <typename SessionSharedPtr>
+template <typename Session>
 class RequestHandlerBase{
 public:
-    virtual void handle(server::client_data_t&& req, server::client_state& state, SessionSharedPtr session_ptr) = 0;
+    virtual void handle(server::client_data_t&& req, server::client_state& state, std::shared_ptr<Session> session_ptr) = 0;
+    virtual void handleDisconnection(Session*) = 0;
 };
 
 class Session : public std::enable_shared_from_this<Session> {
 public:
-    Session(tcp::socket&& socket, RequestHandlerBase<std::shared_ptr<Session>>* request_handler)
+    Session(tcp::socket&& socket, RequestHandlerBase<Session>* request_handler)
         : socket_(std::move(socket))
         , request_handler_(request_handler) {
             socket_.non_blocking(true);
@@ -93,6 +94,8 @@ public:
 
     ~Session(){
         std::cout << "The session is down" << std::endl;
+        request_handler_->handleDisconnection(this);
+        std::cout << "Session Destructor finished!" << std::endl;
     }
 
     void Run() {
@@ -136,7 +139,7 @@ public:
 private:
     boost::asio::ip::tcp::socket socket_;
     client_data_t request_;
-    RequestHandlerBase<std::shared_ptr<Session>>* request_handler_;
+    RequestHandlerBase<Session>* request_handler_;
 
     unblocked_read_state read_state = REQ_TYPE;
     size_t read_message_length, write_message_length;
@@ -148,19 +151,14 @@ private:
     }
 
     void Read(){
-        //if data was received, then the real Read is called
-        // socket_.async_wait(tcp::socket::wait_read, 
-        //     boost::bind(&Session::Read, GetSharedThis(), boost::asio::placeholders::error)
-        // );
-        
         boost::asio::async_read(socket_, boost::array<boost::asio::mutable_buffer, 2>({
             boost::asio::buffer((void*)&request_.request, sizeof(request_.request)),
             boost::asio::buffer((void*)&read_message_length, sizeof(read_message_length))
         }),
-        boost::asio::transfer_all(), beast::bind_front_handler(&Session::OnRead, GetSharedThis()));
+        boost::asio::transfer_all(), beast::bind_front_handler(&Session::ReadMessage, GetSharedThis()));
     }
 
-    void OnRead(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read) { 
+    void ReadMessage(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read) { 
         using namespace std::literals;
         if(ec) return ReportError(ec, "read"sv);
         request_.message_text.resize(read_message_length);
@@ -186,7 +184,6 @@ private:
 
 struct Chat{
     Chat(net::io_context& io, const std::filesystem::path& chat_path) : strand(net::make_strand(io)), path(chat_path){}
-    // Chat() = delete; //
 
     void AddUser(Session* session_ptr, std::string username){
         net::dispatch(strand, [&session_ptr, &username, this]{
@@ -214,6 +211,7 @@ struct Chat{
 
             messages_offset[session_ptr] = off;
             usernames[session_ptr] = username;
+
         });
     }
 
@@ -302,25 +300,44 @@ public:
             users_.insert({session_ptr, {name, ""}});
             result = true;
         });
+
+        std::cout << name << " was registered!\n";
+
         return result;
     }
 
     std::string ChatList(){
-        std::string ans;
-        net::dispatch(chats_strand_, [this, &ans]{
-            for(auto chat : chats_) ans += chat.first + "\n";
+        std::string list;
+        net::dispatch(chats_strand_, [this, &list]{
+            for(auto chat : chats_) list += chat.first + "\n";
         });
-        return ans;
+        return list;
+    }
+
+    void UpdateChatList(Session* session_ptr){
+        std::string list = ChatList();
+        net::dispatch(usernames_strand_, [session_ptr, &list, this]{
+            server_data_t resp;
+            for(auto [user_ptr, user] : users_){
+                if(user.chat_name == ""){
+                    resp.message_text = list;
+                    resp.request = c_get_chats;
+                    resp.responce = s_success;
+                    if(user_ptr != session_ptr) user_ptr->WriteKeepState(std::move(resp));
+                    else user_ptr->Write(std::move(resp));
+                }
+            }
+        });
     }
 
     void Disconnect(Session* session_ptr){
         net::dispatch(chats_strand_, [&session_ptr, this]{
+            //synchronized deletion of the user listing in chat through chat's method
             if(User* usr = IdentifyUser(session_ptr)){
-                //synchronized deletion of the user listing in chat through chat's method
                 if(chats_.contains(usr->chat_name)) {
-                    chats_.at(usr->chat_name).DeleteUser(session_ptr);
+                    chats_.at(usr->chat_name).DeleteUser(session_ptr); // throws exception because ???
                 }
-                //synchronized deletion of the user from the list of users in the system
+                //synchronized deletion of the user from the list of users in the chat manager
                 net::dispatch(usernames_strand_, [&]{
                     users_.erase(session_ptr);
                 });
@@ -362,7 +379,7 @@ public:
         bool result;
         net::dispatch(chats_strand_, 
             [&result, &name, this]{
-                if(chats_.contains(name)){
+                if(chats_.contains(name) || name == ""){
                     result = false;
                     return;
                 }
@@ -381,7 +398,6 @@ public:
                 [&result, this, &usr, &session_ptr]{
                     if(!chats_.contains(usr->chat_name) || 
                         !chats_.at(usr->chat_name).ContainsUser(session_ptr)){
-                        
                         result = false;
                     }
                     else{
@@ -423,13 +439,14 @@ private:
     
 };
 
-class RequestHandler : public server::RequestHandlerBase<std::shared_ptr<server::Session>>, std::enable_shared_from_this<RequestHandler> {
+class RequestHandler : public server::RequestHandlerBase<server::Session>, std::enable_shared_from_this<RequestHandler> {
 public:
     explicit RequestHandler(server::ChatManager&& new_manager) : chatManager(new_manager) {}
 
     RequestHandler(const RequestHandler&) = delete;
     RequestHandler& operator=(const RequestHandler&) = delete;
 
+    
     void handle(server::client_data_t&& req, server::client_state& state, std::shared_ptr<server::Session> shared_session_ptr) {
         // Обработать запрос request и отправить ответ, используя ptr нв сессию
         auto session_ptr = shared_session_ptr.get();
@@ -469,20 +486,19 @@ public:
             if(state != server::client_state::list_chats){
                 resp.message_text = "Cannot create chats, wrong state";
                 resp.responce = server::server_responce_e::s_failure;
+                session_ptr->Write(std::move(resp));
             }
             else{
                 if(!chatManager.CreateChat(req.message_text.data())){
                     resp.message_text = "File with such name already exists";
                     resp.responce = server::server_responce_e::s_failure;
+                    session_ptr->Write(std::move(resp));
                 }
                 else{
-                    resp.message_text = chatManager.ChatList();
-                    resp.responce = server::server_responce_e::s_success;
-                    // then send everyone out of chat new list
-
+                    // send everyone out of chat new list
+                    chatManager.UpdateChatList(session_ptr);
                 }
             }
-            session_ptr->Write(std::move(resp));
             break;
         case server::client_request_e::c_connect_chat:
             if(state != server::client_state::list_chats){
@@ -508,9 +524,9 @@ public:
             }
             //no messages about leaving
             break;
-        case server::client_request_e::c_disconnect:
-            chatManager.Disconnect(session_ptr); //throws exception if currentChat does not exist ?????????
-            break;
+        // case server::client_request_e::c_disconnect:
+        //     chatManager.Disconnect(session_ptr);
+        //     break;
         // case server::client_request_e::c_receive_message:
         //     break;
         // case server::client_request_e::c_get_chats:
@@ -520,6 +536,12 @@ public:
             resp.request = server::client_request_e::c_wrong_request;
             resp.responce = server::server_responce_e::s_failure;
             session_ptr->Write(std::move(resp));
+        }
+    }
+
+    void handleDisconnection(Session* session_ptr){
+        try{chatManager.Disconnect(session_ptr);}catch(...){
+            std::cout << "Error happened!";
         }
     }
 private:
