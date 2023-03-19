@@ -22,8 +22,10 @@ MainWindow::MainWindow(QWidget *parent)
     if(start_ok){
         CRH->startThread();
     }
-    else QMessageBox::warning(this, "ACHTUNG!", "Server error: could not connect.\nTry reopening app once we reanimate the server!");
-
+    else {
+        QMessageBox::warning(this, "ACHTUNG!", "Server error: could not connect.\nTry reopening app once we reanimate the server!");
+        this->close();
+    }
 }
 
 void MainWindow::on_serverDown(){
