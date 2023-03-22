@@ -53,7 +53,7 @@ typedef enum {
 
 struct client_data_t : public std::enable_shared_from_this<client_data_t>{
     client_request_e request;
-    std::vector<char> message_text;
+    std::string message_text;
 };
 
 struct server_data_t : public std::enable_shared_from_this<server_data_t>{

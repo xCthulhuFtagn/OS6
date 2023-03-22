@@ -89,7 +89,6 @@ void Session::OnWrite(beast::error_code ec, [[maybe_unused]] std::size_t bytes_w
 
 void Session::HandleRequest(client_data_t && request) {
     request_handler_->handle(std::move(request), state_, GetSharedThis());
-    request.message_text = {}; //clear the data
 }
 
 // Chat methods
@@ -178,7 +177,7 @@ bool Chat::ContainsUser(Session* session_ptr){
 
 bool ChatManager::SetName(std::string name, Session* session_ptr){
     bool result;
-    net::dispatch(usernames_strand_, [this, &name, &result, &session_ptr]{
+    net::dispatch(usernames_strand_, [this, &name, &result, session_ptr]{
         for(auto [user_ptr, user] : users_){
             if(user.name == name){
                 result = false;
@@ -189,7 +188,8 @@ bool ChatManager::SetName(std::string name, Session* session_ptr){
         result = true;
     });
 
-    std::cout << name << " was registered!\n";
+    if(result) std::cout << name << " was registered!\n";
+    else std::cout << name << " could not be registered!\n";
 
     return result;
 }
@@ -249,14 +249,15 @@ void ChatManager::ConnectChat(std::string chat_name, Session* session_ptr){ //Se
                 } 
                 
                 resp.responce = server_responce_e::s_success;
-                session_ptr->Write(std::move(resp)); // invoking saved method to inform client that the chat is connected RN
+                session_ptr->WriteKeepState(std::move(resp)); // invoking saved method to inform client that the chat is connected RN
+                //keep the state because AddUserMethod will be the last one to send the message
 
                 chats_.at(chat_name).AddUser(session_ptr, usr->name);
                 
                 //synchronized update of user status
                 net::dispatch(usernames_strand_, [&chat_name, &session_ptr, this]{
                     if(users_.contains(session_ptr)) users_.at(session_ptr).chat_name = chat_name;
-                    });
+                });
 
             }
         );
@@ -290,6 +291,9 @@ bool ChatManager::LeaveChat(Session* session_ptr){
                 }
                 else{
                     chats_.at(usr->chat_name).DeleteUser(session_ptr);
+                    net::dispatch(usernames_strand_, [this, &session_ptr]{
+                        if(users_.contains(session_ptr)) users_.at(session_ptr).chat_name.clear();
+                    });
                     result = true;
                 }
             }
@@ -314,6 +318,7 @@ void RequestHandler::handle(client_data_t&& req, client_state& state, std::share
     auto session_ptr = shared_session_ptr.get();
     server_data_t resp;
     resp.request = req.request;
+
     switch(req.request){
     case client_request_e::c_set_name:
         if(state != client_state::no_name){
@@ -321,7 +326,7 @@ void RequestHandler::handle(client_data_t&& req, client_state& state, std::share
             resp.responce = server_responce_e::s_failure;
             session_ptr->Write(std::move(resp));
         } else {
-            if(chatManager.SetName(req.message_text.data(), session_ptr)){
+            if(chatManager.SetName(req.message_text, session_ptr)){
                 state = client_state::list_chats;
                 resp.message_text = "";
                 resp.responce = server_responce_e::s_success;
@@ -331,6 +336,7 @@ void RequestHandler::handle(client_data_t&& req, client_state& state, std::share
                 resp.responce = server_responce_e::s_success;
                 resp.message_text = chatManager.ChatList();
                 
+
                 session_ptr->Write(std::move(resp));
 
             } else {
@@ -347,7 +353,7 @@ void RequestHandler::handle(client_data_t&& req, client_state& state, std::share
             session_ptr->Write(std::move(resp));
         }
         else{
-            if(!chatManager.CreateChat(req.message_text.data())){
+            if(!chatManager.CreateChat(req.message_text)){
                 resp.message_text = "Chat with such name already exists";
                 resp.responce = server_responce_e::s_failure;
                 session_ptr->Write(std::move(resp));
