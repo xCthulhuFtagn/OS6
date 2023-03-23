@@ -143,19 +143,20 @@ public:
         }
     }
 
-    bool SetName(std::string name, Session* session_ptr);
+    bool SetName(std::string name, std::shared_ptr<Session> session_ptr);
     std::string ChatList();
-    void UpdateChatList(Session* session_ptr);
-    void Disconnect(Session* session_ptr);
-    void ConnectChat(std::string chat_name, Session* session_ptr);
+    void UpdateChatList(std::shared_ptr<Session> session_ptr);
+    void ConnectChat(std::string chat_name, std::shared_ptr<Session> session_ptr);
     bool CreateChat(std::string name);
-    bool LeaveChat(Session* session_ptr);
-    void SendMessage(std::string message, Session* session_ptr);
+    bool LeaveChat(std::shared_ptr<Session> session_ptr);
+    void SendMessage(std::string message, std::shared_ptr<Session> session_ptr);
+
+    void Disconnect(Session* session_ptr);
     
 private:
 
     std::unordered_map<std::string, Chat> chats_; // чаты с юзернеймами
-    std::unordered_map<Session*, User> users_; // мапа: метод отправки к самому юзеру
+    std::unordered_map<Session*, User> users_; // мапа: СессияЫ к самому юзеру
     net::io_context& io_;
     net::strand<net::io_context::executor_type> chats_strand_, usernames_strand_;
     std::filesystem::path path_of_chats;
