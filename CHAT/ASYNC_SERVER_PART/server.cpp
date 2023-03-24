@@ -94,9 +94,9 @@ void Session::HandleRequest(client_data_t && request) {
 // Chat methods
 
 void Chat::AddUser(Session* session_ptr, std::string username){
-    net::dispatch(strand, [&session_ptr, &username, this]{
+    net::dispatch(strand, [shared = session_ptr->GetSharedThis(), &username, this]{
 
-        messages_offset.insert({session_ptr, 0});
+        messages_offset.insert({shared.get(), 0});
 
         std::fstream chat_file(path);
         chat_file.seekp(0, chat_file.end);
@@ -112,31 +112,31 @@ void Chat::AddUser(Session* session_ptr, std::string username){
             resp.request = client_request_e::c_receive_message; // now we change the request that we are serving because we did connect to chat
             std::getline(chat_file, resp.message_text, '\r');
             off = chat_file.tellp();
-            if(off != file_size) session_ptr->WriteKeepState(std::move(resp));
-            else session_ptr->Write(std::move(resp));
+            if(off != file_size) shared->WriteKeepState(std::move(resp));
+            else shared->Write(std::move(resp));
             // invoking saved method to send all unread chat messages to connected user
         }
 
-        messages_offset[session_ptr] = off;
-        usernames[session_ptr] = username;
+        messages_offset[shared.get()] = off;
+        usernames[shared.get()] = username;
 
     });
 }
 
 void Chat::DeleteUser(Session* session_ptr){
-    net::dispatch(strand, [&session_ptr, this](){
+    net::dispatch(strand, [session_ptr, this](){
         messages_offset.erase(session_ptr);
         usernames.erase(session_ptr);
     });
 }
 
 void Chat::SendMessage(std::string message, Session* session_ptr){
-    net::dispatch(strand, [&message, session_ptr, this]{
+    net::dispatch(strand, [&message, shared = session_ptr->GetSharedThis(), this]{
         // std::fstream chat_file(usr->chat_name + ".chat");
-        if(messages_offset.contains(session_ptr)){
+        if(messages_offset.contains(shared.get())){
             std::fstream chat_file(path);
 
-            chat_file << usernames[session_ptr] << "\t";
+            chat_file << usernames[shared.get()] << "\t";
             
             time_t curr_time;
             tm * curr_tm;
@@ -157,7 +157,7 @@ void Chat::SendMessage(std::string message, Session* session_ptr){
                     resp.request = client_request_e::c_receive_message;
                     std::getline(chat_file, resp.message_text, '\r');
                     off = chat_file.tellp();
-                    if(usr_ptr != session_ptr || off != file_size) usr_ptr->WriteKeepState(std::move(resp));
+                    if(usr_ptr != shared.get() || off != file_size) usr_ptr->WriteKeepState(std::move(resp));
                     else usr_ptr->Write(std::move(resp));
                 }
             }
@@ -167,17 +167,17 @@ void Chat::SendMessage(std::string message, Session* session_ptr){
 
 bool Chat::ContainsUser(Session* session_ptr){
     bool result;
-    net::dispatch(strand, [&session_ptr, &result, this]{
-        result = messages_offset.count(session_ptr);
+    net::dispatch(strand, [shared = session_ptr->GetSharedThis(), &result, this]{
+        result = messages_offset.contains(shared.get());
     });
     return result;
 }
 
 // ChatManager methods
 
-bool ChatManager::SetName(std::string name, std::shared_ptr<Session> shared_session_ptr){
+bool ChatManager::SetName(std::string name, Session* session_ptr){
     bool result;
-    net::dispatch(usernames_strand_, [this, &name, &result, shared = shared_session_ptr]{
+    net::dispatch(usernames_strand_, [this, &name, &result, shared = session_ptr->GetSharedThis()]{
         for(auto [user_ptr, user] : users_){
             if(user.name == name){
                 result = false;
@@ -202,8 +202,8 @@ std::string ChatManager::ChatList(){
     return list;
 }
 
-void ChatManager::UpdateChatList(std::shared_ptr<Session> shared_session_ptr){
-    net::dispatch(usernames_strand_, [shared = shared_session_ptr, this]{
+void ChatManager::UpdateChatList(Session* session_ptr){
+    net::dispatch(usernames_strand_, [shared = session_ptr->GetSharedThis(), this]{
         server_data_t resp;
         std::string list = ChatList();
         for(auto [user_ptr, user] : users_){
@@ -233,11 +233,11 @@ void ChatManager::Disconnect(Session* session_ptr){
     });
 }
 
-void ChatManager::ConnectChat(std::string chat_name, std::shared_ptr<Session> shared_session_ptr){ //Sends everything the client needs, including success or failure notification
+void ChatManager::ConnectChat(std::string chat_name, Session* session_ptr){ //Sends everything the client needs, including success or failure notification
     using namespace std::literals;
-    if(User* usr = IdentifyUser(shared_session_ptr.get())){
+    if(User* usr = IdentifyUser(session_ptr)){
         net::dispatch(chats_strand_, 
-            [&chat_name, shared = shared_session_ptr, &usr, this]{
+            [&chat_name, shared = session_ptr->GetSharedThis(), &usr, this]{
                 server_data_t resp;
                 resp.message_text = "";
                 resp.request = client_request_e::c_connect_chat;
@@ -280,11 +280,11 @@ bool ChatManager::CreateChat(std::string name){
     return result;
 }
 
-bool ChatManager::LeaveChat(std::shared_ptr<Session> shared_session_ptr){
+bool ChatManager::LeaveChat(Session* session_ptr){
     bool result = false;
-    if(User* usr = IdentifyUser(shared_session_ptr.get())){
+    if(User* usr = IdentifyUser(session_ptr)){
         net::dispatch(chats_strand_, 
-            [&result, this, &usr, shared = shared_session_ptr]{
+            [&result, this, &usr, shared = session_ptr->GetSharedThis()]{
                 if(!chats_.contains(usr->chat_name) || 
                     !chats_.at(usr->chat_name).ContainsUser(shared.get())){
                     result = false;
@@ -302,10 +302,10 @@ bool ChatManager::LeaveChat(std::shared_ptr<Session> shared_session_ptr){
     return result;
 }
 
-void ChatManager::SendMessage(std::string message, std::shared_ptr<Session> shared_session_ptr){ // this one actually sends messages by itself
-    User* usr = IdentifyUser(shared_session_ptr.get());
+void ChatManager::SendMessage(std::string message, Session* session_ptr){ // this one actually sends messages by itself
+    User* usr = IdentifyUser(session_ptr);
     net::dispatch(chats_strand_, 
-        [this, usr, &message, shared = shared_session_ptr]{
+        [this, usr, &message, shared = session_ptr->GetSharedThis()]{
             if(chats_.contains(usr->chat_name)) chats_.at(usr->chat_name).SendMessage(message, shared.get());
         }
     );
@@ -326,7 +326,7 @@ void RequestHandler::handle(client_data_t&& req, client_state& state, std::share
             resp.responce = server_responce_e::s_failure;
             session_ptr->Write(std::move(resp));
         } else {
-            if(chatManager.SetName(req.message_text, shared_session_ptr)){
+            if(chatManager.SetName(req.message_text, session_ptr)){
                 state = client_state::list_chats;
                 resp.message_text = "";
                 resp.responce = server_responce_e::s_success;
@@ -360,7 +360,7 @@ void RequestHandler::handle(client_data_t&& req, client_state& state, std::share
             }
             else{
                 // send everyone out of chat new list
-                chatManager.UpdateChatList(shared_session_ptr);
+                chatManager.UpdateChatList(session_ptr);
             }
         }
         break;
@@ -370,7 +370,7 @@ void RequestHandler::handle(client_data_t&& req, client_state& state, std::share
             resp.responce = server_responce_e::s_failure;
         }
         else {
-            chatManager.ConnectChat(req.message_text.data(), shared_session_ptr);
+            chatManager.ConnectChat(req.message_text.data(), session_ptr);
             state = client_state::in_chat;
         }
         break;
@@ -379,10 +379,10 @@ void RequestHandler::handle(client_data_t&& req, client_state& state, std::share
             resp.message_text = "";
             resp.responce = server_responce_e::s_failure;
         }
-        else chatManager.SendMessage(req.message_text.data(), shared_session_ptr);
+        else chatManager.SendMessage(req.message_text.data(), session_ptr);
         break;
     case client_request_e::c_leave_chat:
-        if(state == client_state::in_chat && chatManager.LeaveChat(shared_session_ptr)){
+        if(state == client_state::in_chat && chatManager.LeaveChat(session_ptr)){
             // Can leave chat, ok state && could to leave the chat
             state = client_state::list_chats;
             resp.request = client_request_e::c_get_chats;

@@ -94,6 +94,7 @@ public:
     void Run();
     void WriteKeepState(server_data_t && response);
     void Write(server_data_t&& response);
+    std::shared_ptr<Session> GetSharedThis();
 
 private:
     boost::asio::ip::tcp::socket socket_;
@@ -105,7 +106,6 @@ private:
     client_state state_ = client_state::no_name;
 
 
-    std::shared_ptr<Session> GetSharedThis();
     void Read();
     void ReadMessage(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read);
     void OnWrite(beast::error_code ec, [[maybe_unused]] std::size_t bytes_written);
@@ -116,9 +116,10 @@ struct Chat{
     Chat(net::io_context& io, const std::filesystem::path& chat_path) : strand(net::make_strand(io)), path(chat_path){}
 
     void AddUser(Session* session_ptr, std::string username);
-    void DeleteUser(Session* session_ptr);
     void SendMessage(std::string message, Session* session_ptr);
     bool ContainsUser(Session* session_ptr);
+
+    void DeleteUser(Session* session_ptr);
 
     net::strand<net::io_context::executor_type> strand;
     std::unordered_map<Session*, std::streamoff> messages_offset; // Session to offset in chat file
@@ -143,13 +144,13 @@ public:
         }
     }
 
-    bool SetName(std::string name, std::shared_ptr<Session> session_ptr);
+    bool SetName(std::string name, Session* session_ptr);
     std::string ChatList();
-    void UpdateChatList(std::shared_ptr<Session> session_ptr);
-    void ConnectChat(std::string chat_name, std::shared_ptr<Session> session_ptr);
+    void UpdateChatList(Session* session_ptr);
+    void ConnectChat(std::string chat_name, Session* session_ptr);
     bool CreateChat(std::string name);
-    bool LeaveChat(std::shared_ptr<Session> session_ptr);
-    void SendMessage(std::string message, std::shared_ptr<Session> session_ptr);
+    bool LeaveChat(Session* session_ptr);
+    void SendMessage(std::string message, Session* session_ptr);
 
     void Disconnect(Session* session_ptr);
     
