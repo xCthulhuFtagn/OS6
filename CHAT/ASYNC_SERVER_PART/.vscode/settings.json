@@ -72,6 +72,8 @@
         "semaphore": "cpp",
         "unordered_set": "cpp",
         "fstream": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "coroutine": "cpp",
+        "source_location": "cpp"
     }
 }
