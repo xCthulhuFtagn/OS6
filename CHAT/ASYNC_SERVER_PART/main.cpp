@@ -61,7 +61,8 @@ int main(int argc, const char* argv[]) {
         RunThreads(std::max(1u, num_threads), [&ioc] {
             ioc.run();
         });
-    } catch (const std::exception& ex) {
+    }
+    catch (const std::exception& ex) {
         std::cerr << ex.what() << std::endl;
         return EXIT_FAILURE;
     }
