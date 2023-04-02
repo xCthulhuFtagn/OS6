@@ -18,14 +18,18 @@ void ReportError(beast::error_code ec, std::string_view what) {
 
 net::awaitable<void> Write(tcp::socket* socket, server_data_t&& response){
     size_t message_length = response.message_text.size();
-    auto safe_response = std::make_shared<server_data_t>(std::move(response));
+    auto safe_response = response;
+
+    // std::cout << "Sending message: {request: " << response.request 
+    // << ", response: " << response.response << ", message: \"" << response.message_text << "\"}" << std::endl;
+
     auto [ec, bytes] = co_await net::async_write(
         *socket, 
         boost::array<boost::asio::mutable_buffer, 4>({
-            net::buffer((void*)&safe_response->request, sizeof(client_request_e)),
-            net::buffer((void*)&safe_response->responce, sizeof(server_responce_e)),
+            net::buffer((void*)&safe_response.request, sizeof(client_request_e)),
+            net::buffer((void*)&safe_response.response, sizeof(server_response_e)),
             net::buffer((void*)&message_length, sizeof(size_t)),
-            net::buffer(safe_response->message_text)
+            net::buffer(safe_response.message_text)
         }),
         // boost::asio::transfer_all(), // maybe needed
         net::experimental::as_tuple(net::use_awaitable)
@@ -35,6 +39,8 @@ net::awaitable<void> Write(tcp::socket* socket, server_data_t&& response){
         //log here
         throw ec;
     }
+
+    // std::cout << "Message sent" << std::endl;
 }
 
 // Chat methods
@@ -53,18 +59,17 @@ boost::asio::awaitable<void> Chat::AddUser(tcp::socket* socket, std::string user
     std::streamoff off = 0;
     chat_file.seekg(off, chat_file.beg);
 
-    std::cout << "[off = " << off << ", file_size = " << file_size << "]\n";
+    // std::cout << "[off = " << off << ", file_size = " << file_size << "]\n";
 
     while (off != file_size) {
-        resp.responce = server_responce_e::s_success;
+        resp.response = server_response_e::s_success;
         resp.request = client_request_e::c_receive_message; // now we change the request that we are serving because we did connect to chat
         std::getline(chat_file, resp.message_text, '\r');
         off = chat_file.tellp();
         co_await Write(socket, std::move(resp));
         // invoking saved method to send all unread chat messages to connected user
+        // std::cout << "[off = " << off << ", file_size = " << file_size << "]\n";
     }
-
-    std::cout << "[off = " << off << ", file_size = " << file_size << "]\n";
 
     messages_offset[socket] = off;
     usernames[socket] = username;
@@ -82,7 +87,9 @@ boost::asio::awaitable<void> Chat::SendMessage(tcp::socket* socket, std::string 
     co_await net::dispatch(strand, boost::asio::use_awaitable);
 
     if(messages_offset.contains(socket)){
-        std::fstream chat_file(path);
+        std::fstream chat_file;
+        
+        chat_file.open(path, std::fstream::out | std::fstream::app);
 
         chat_file << usernames[socket] << "\t";
         
@@ -94,13 +101,16 @@ boost::asio::awaitable<void> Chat::SendMessage(tcp::socket* socket, std::string 
         curr_tm = localtime(&curr_time);
         strftime(timedate.data(), 99, "%T %D", curr_tm);
 
-        chat_file.write(timedate.c_str(), timedate.length());
-        chat_file << std::endl << message << "\r";
+        chat_file << timedate.c_str() << std::endl << message << "\r";
     
         auto file_size = chat_file.tellp();
 
+        chat_file.close();
+
+        chat_file.open(path, std::fstream::in | std::fstream::app);
+
+
         for(auto& [usr_socket, off] : messages_offset){
-            std::cout << "[socket:  " << usr_socket << ", offset:" << off << "]\n";
             chat_file.seekg(off, chat_file.beg);
             while(off != file_size){
                 server_data_t resp;
@@ -110,6 +120,8 @@ boost::asio::awaitable<void> Chat::SendMessage(tcp::socket* socket, std::string 
                 co_await Write(usr_socket, std::move(resp));
             }
         }
+
+        chat_file.close();
     } 
 }
 
@@ -131,10 +143,10 @@ boost::asio::awaitable<bool> ChatManager::SetName(std::string name, tcp::socket*
     }
 
     if(result) {
-        std::cout << name << " was registered!\n";
+        // std::cout << name << " was registered!\n";
         users_.insert({user_socket, {name, ""}});
     }
-    else std::cout << name << " could not be registered!\n";
+    // else std::cout << name << " could not be registered!\n";
 
     co_return result;
 }
@@ -155,7 +167,7 @@ boost::asio::awaitable<void> ChatManager::UpdateChatList(){
         if(user.chat_name.empty()){
             resp.message_text = list;
             resp.request = c_get_chats;
-            resp.responce = s_success;
+            resp.response = s_success;
             co_await Write(socket_ptr, std::move(resp));
         }
     }
@@ -184,17 +196,18 @@ boost::asio::awaitable<void> ChatManager::ConnectChat(std::string chat_name, tcp
     if(users_.contains(user_socket)) {
         User usr = users_.at(user_socket);
         co_await net::dispatch(chats_strand_, boost::asio::use_awaitable);
+        
         server_data_t resp;
-        resp.message_text = "";
+        resp.message_text = chat_name;
         resp.request = client_request_e::c_connect_chat;
 
         if(!chats_.contains(chat_name)) {
-            resp.responce = server_responce_e::s_failure;
+            resp.response = server_response_e::s_failure;
             co_await Write(user_socket, std::move(resp)); // invoking saved method to inform client that the chat failed to connect
             co_return;
         } 
         
-        resp.responce = server_responce_e::s_success;
+        resp.response = server_response_e::s_success;
         co_await Write(user_socket, std::move(resp)); // invoking saved method to inform client that the chat is connected RN
         //keep the state because AddUser method will be the last one to send the message
 
@@ -311,7 +324,7 @@ boost::asio::awaitable<void> Session(tcp::socket&& socket, ChatManager* chatMana
     tcp::socket socket_(std::move(socket));
 
     try{
-        do{
+        while(true){
             auto [ec, bytes] = co_await 
             boost::asio::async_read(
                 socket_, 
@@ -340,21 +353,23 @@ boost::asio::awaitable<void> Session(tcp::socket&& socket, ChatManager* chatMana
                 //log here 
                 throw ec;
             }
+            // std::cout << "Received message: {request: " << request_.request << ", message: \"" << request_.message_text << "\"}" << std::endl;
+            response_.request = request_.request;
             switch(request_.request){
                 case client_request_e::c_set_name:
                     if(clientState != client_state::no_name){
                         response_.message_text = "Cannot set name twice!";
-                        response_.responce = server_responce_e::s_failure;
+                        response_.response = server_response_e::s_failure;
                         co_await Write(&socket_, std::move(response_));
                     } else {
                         if(co_await chatManager->SetName(request_.message_text, &socket_)){
                             clientState = client_state::list_chats;
                             response_.message_text = "";
-                            response_.responce = server_responce_e::s_success;
+                            response_.response = server_response_e::s_success;
                             co_await Write(&socket_, std::move(response_));
 
                             response_.request = client_request_e::c_get_chats;
-                            response_.responce = server_responce_e::s_success;
+                            response_.response = server_response_e::s_success;
                             response_.message_text = co_await chatManager->ChatList();
                             
 
@@ -362,7 +377,7 @@ boost::asio::awaitable<void> Session(tcp::socket&& socket, ChatManager* chatMana
 
                         } else {
                             response_.message_text = "Username is already in use";
-                            response_.responce = server_responce_e::s_failure;
+                            response_.response = server_response_e::s_failure;
                             co_await Write(&socket_, std::move(response_));
                         }
                     }
@@ -370,13 +385,13 @@ boost::asio::awaitable<void> Session(tcp::socket&& socket, ChatManager* chatMana
                 case client_request_e::c_create_chat:
                     if(clientState != client_state::list_chats){
                         response_.message_text = "Cannot create chats, wrong state";
-                        response_.responce = server_responce_e::s_failure;
+                        response_.response = server_response_e::s_failure;
                         co_await Write(&socket_, std::move(response_));
                     }
                     else{
                         if(!co_await chatManager->CreateChat(request_.message_text)){
                             response_.message_text = "Chat with such name already exists";
-                            response_.responce = server_responce_e::s_failure;
+                            response_.response = server_response_e::s_failure;
                             co_await Write(&socket_, std::move(response_));
                         }
                         else{
@@ -388,7 +403,7 @@ boost::asio::awaitable<void> Session(tcp::socket&& socket, ChatManager* chatMana
                 case client_request_e::c_connect_chat:
                     if(clientState != client_state::list_chats){
                         response_.message_text = "Cannot connect chat, wrong state!";
-                        response_.responce = server_responce_e::s_failure;
+                        response_.response = server_response_e::s_failure;
                         co_await Write(&socket_, std::move(response_));
                     }
                     else {
@@ -399,7 +414,7 @@ boost::asio::awaitable<void> Session(tcp::socket&& socket, ChatManager* chatMana
                 case client_request_e::c_send_message:
                     if(clientState != client_state::in_chat){
                         response_.message_text = "";
-                        response_.responce = server_responce_e::s_failure;
+                        response_.response = server_response_e::s_failure;
                         co_await Write(&socket_, std::move(response_));
                     }
                     else 
@@ -410,13 +425,13 @@ boost::asio::awaitable<void> Session(tcp::socket&& socket, ChatManager* chatMana
                         // Can leave chat, ok state && could to leave the chat
                         clientState = client_state::list_chats;
                         response_.request = client_request_e::c_get_chats;
-                        response_.responce = server_responce_e::s_success;
+                        response_.response = server_response_e::s_success;
                         response_.message_text = co_await chatManager->ChatList();
                         co_await Write(&socket_, std::move(response_));
                     }
                     else{
                         response_.message_text = "";
-                        response_.responce = server_responce_e::s_failure;
+                        response_.response = server_response_e::s_failure;
                         co_await Write(&socket_, std::move(response_));
                     }
                     //no messages about leaving
@@ -424,10 +439,10 @@ boost::asio::awaitable<void> Session(tcp::socket&& socket, ChatManager* chatMana
                 default:
                     response_.message_text = "Wrong request";
                     response_.request = client_request_e::c_wrong_request;
-                    response_.responce = server_responce_e::s_failure;
+                    response_.response = server_response_e::s_failure;
                     co_await Write(&socket_, std::move(response_));
                 }
-        }while(true);
+        }
     } 
     catch(...){}
     // catch(std::exception e){
@@ -437,7 +452,7 @@ boost::asio::awaitable<void> Session(tcp::socket&& socket, ChatManager* chatMana
     //     std::cout << "Boost error occured: " << ec.what() << std::endl;
     // }
     //disconnection
-    std::cout << "Session ended!" << std::endl;
+    // std::cout << "Session ended!" << std::endl;
     co_await chatManager->Disconnect(&socket_);
 }
 

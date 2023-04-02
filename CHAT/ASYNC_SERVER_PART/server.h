@@ -56,7 +56,7 @@ enum client_request_e {
 typedef enum {
     s_success = 0,
     s_failure,
-} server_responce_e;
+} server_response_e;
 
 struct client_data_t : public std::enable_shared_from_this<client_data_t>{
     client_request_e request;
@@ -65,7 +65,7 @@ struct client_data_t : public std::enable_shared_from_this<client_data_t>{
 
 struct server_data_t : public std::enable_shared_from_this<server_data_t>{
     client_request_e request;
-    server_responce_e responce;
+    server_response_e response;
     std::string message_text;
 };
 
@@ -107,14 +107,13 @@ public:
 
         // file.exceptions(std::ifstream::failbit | std::ifstream::badbit );
         try{
-            std::cout << "File path: " << chat_path << std::endl;
-            std::cout << "Current path: " << std::filesystem::current_path() << std:: endl;
-            std::ofstream {path};
+            std::ofstream {path, std::fstream::app};
             // If no file is created, then
             // show the error message.
+
             // log
         } catch(std::ifstream::failure e){
-            std::cout << "File opening error: " << e.what() << std::endl;
+            //log
             throw e;
         }
     }
