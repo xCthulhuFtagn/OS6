@@ -37,6 +37,7 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
         // changing hashmap of events
         int read_bytes;
         while ((read_bytes = read(go_in_chat_pipe_input, (void*)(&ev.data.fd), sizeof(int))) > 0) {
+            std::cout << "Bytes income: " << read_bytes << '\n';
             vec_of_events.push_back(ev);
             messages_offset[ev.data.fd] = 0;
             epoll_ctl(chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
@@ -107,19 +108,18 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
             }
         }
         else {
-            chats[chat_name].mtx.lock();
+            std::lock_guard chat_locker(chats[chat_name].mtx);
             if(chats[chat_name].subs.empty()){
                 fprintf(stderr, "closing routine for chat: %s\n", chat_name.c_str());
-                close(go_in_chat_pipe_input);
+                // close(go_in_chat_pipe_input);
+                close(chats[chat_name].pipe.out);
+                close(chats[chat_name].pipe.in);
                 close(chat_epoll_fd);
                 chat_file.close();
                 chats[chat_name].pipe.in = -1;
-                chats[chat_name].pipe.out = -2;
-                // chats[chat_name].pipe;
-                chats[chat_name].mtx.unlock();
+                chats[chat_name].pipe.out = -1;
                 return;
             }
-            chats[chat_name].mtx.unlock();
         }
         if (messages_offset.size() != vec_of_events.size())
             vec_of_events.resize(messages_offset.size());
@@ -155,6 +155,7 @@ void list_of_chats(int end_to_read_from) {
     int new_socket, bytes;
     while(true){
         while ((bytes = read(end_to_read_from, &new_socket, sizeof(int))) > 0) {
+            std::cout << "Bytes income: " << bytes << '\n';
             std::cout << "Welcome to list of chats, " << new_socket << std::endl;
             ev.data.fd = new_socket;
             clients_without_chat.insert(new_socket);
@@ -218,7 +219,7 @@ void list_of_chats(int end_to_read_from) {
                             //if chat was unused -> setup
                             chats[received.message_text].mtx.lock();
                             if(chats[received.message_text].pipe.in = -1){
-                                close(chats[received.message_text].pipe.out);
+                                // close(chats[received.message_text].pipe.out);
                                 int tmp[2];
                                 if(pipe(tmp) < 0) {
                                     perror("could not open pipe to chat");
