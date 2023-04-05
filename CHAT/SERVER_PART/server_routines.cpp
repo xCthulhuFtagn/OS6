@@ -49,7 +49,7 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
         //     return;
         // }
         if (read_bytes < 0 && errno != EAGAIN && errno != EINTR) {
-            fprintf(stderr, "pipe failed in %s", chat_name);
+            fprintf(stderr, "pipe failed in %s", chat_name.c_str());
             perror("");
             close(chat_epoll_fd);
             chat_file.close();
@@ -74,14 +74,14 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                     switch (client_data.request)
                     {
                         case c_leave_chat:
-                            chats[chat_name].mtx.lock();
+                            // chats[chat_name].mtx.lock();
                             if(write(list_chats_pipe[1], &fd, sizeof(int)) < 0){
                                 perror("Failed to send client's fd to no_chat routine");
                             }
                             epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
                             messages_offset.erase(fd);
                             chats[chat_name].subs.erase(fd); //unsubscribing
-                            chats[chat_name].mtx.unlock();
+                            // chats[chat_name].mtx.unlock();
                             break;
                         case c_disconnect:
                             write(disco_pipe[1], &fd, sizeof(int));
@@ -106,14 +106,20 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                 }
             }
         }
-        else if(chats[chat_name].subs.empty()){
+        else {
             chats[chat_name].mtx.lock();
-            fprintf(stderr, "closing routine for chat: %s\n", chat_name.c_str());
-            close(go_in_chat_pipe_input);
-            close(chat_epoll_fd);
-            chat_file.close();
+            if(chats[chat_name].subs.empty()){
+                fprintf(stderr, "closing routine for chat: %s\n", chat_name.c_str());
+                close(go_in_chat_pipe_input);
+                close(chat_epoll_fd);
+                chat_file.close();
+                chats[chat_name].pipe.in = -1;
+                chats[chat_name].pipe.out = -2;
+                // chats[chat_name].pipe;
+                chats[chat_name].mtx.unlock();
+                return;
+            }
             chats[chat_name].mtx.unlock();
-            return;
         }
         if (messages_offset.size() != vec_of_events.size())
             vec_of_events.resize(messages_offset.size());
@@ -149,6 +155,7 @@ void list_of_chats(int end_to_read_from) {
     int new_socket, bytes;
     while(true){
         while ((bytes = read(end_to_read_from, &new_socket, sizeof(int))) > 0) {
+            std::cout << "Welcome to list of chats, " << new_socket << std::endl;
             ev.data.fd = new_socket;
             clients_without_chat.insert(new_socket);
             vec_of_events.push_back(ev);
@@ -191,6 +198,8 @@ void list_of_chats(int end_to_read_from) {
                             else
                             { // if ok -> add the chat to the list of available ones + send list of them
                                 chats[received.message_text].subs = {};
+                                chats[received.message_text].pipe.in = -1;
+                                chats[received.message_text].pipe.out = -1;
                                 for (int socket : clients_without_chat)
                                     send_available_chats(socket);
                             }
@@ -208,7 +217,7 @@ void list_of_chats(int end_to_read_from) {
                             }
                             //if chat was unused -> setup
                             chats[received.message_text].mtx.lock();
-                            if(chats[received.message_text].subs.empty()){
+                            if(chats[received.message_text].pipe.in = -1){
                                 close(chats[received.message_text].pipe.out);
                                 int tmp[2];
                                 if(pipe(tmp) < 0) {
