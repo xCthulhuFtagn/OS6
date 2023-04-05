@@ -42,22 +42,19 @@ int main(int argc, const char* argv[]) {
                 ioc.stop();
             }
         });
-        // 3. Создаём обработчик клиентских запросов и связываем его с менеджером чатов
-        // server::ChatManager<server::Session<handler::RequestHandler>> new_manager(ioc, "./chats");
-        // auto handler = std::make_shared<handler::RequestHandler>(std::move(new_manager));
 
-        // 4. Запускаем обработку запросов, делегируя их обработчику запросов
+        // 3. Настройка сетевых параметров
         constexpr boost::asio::ip::port_type port = 5000;
         const auto address = net::ip::tcp::endpoint(net::ip::tcp::v4(), port).address();
         net::ip::tcp::endpoint endpoint = {address, port};
 
-        //5. Запускаем серверную обработку запросов
+        //4. Запускаем серверную обработку запросов
         std::make_shared<server::Server>(ioc,  endpoint, "./chats"s)->Run();
 
         // Эта надпись сообщает тестам о том, что сервер запущен и готов обрабатывать запросы
         std::cout << "Server has started..."sv << std::endl;
 
-        // 6. Запускаем обработку асинхронных операций
+        // 5. Запускаем обработку асинхронных операций
         RunThreads(std::max(1u, num_threads), [&ioc] {
             ioc.run();
         });

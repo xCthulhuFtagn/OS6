@@ -1,0 +1,3 @@
+/home/owner/Desktop/dev/cpp/programming/OS6/CHAT/tester/build/CMakeFiles/rebuild_cache.dir
+/home/owner/Desktop/dev/cpp/programming/OS6/CHAT/tester/build/CMakeFiles/edit_cache.dir
+/home/owner/Desktop/dev/cpp/programming/OS6/CHAT/tester/build/CMakeFiles/tester.dir

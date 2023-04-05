@@ -143,10 +143,10 @@ boost::asio::awaitable<bool> ChatManager::SetName(std::string name, tcp::socket*
     }
 
     if(result) {
-        // std::cout << name << " was registered!\n";
+        std::cout << name << " was registered!\n";
         users_.insert({user_socket, {name, ""}});
     }
-    // else std::cout << name << " could not be registered!\n";
+    else std::cout << name << " could not be registered!\n";
 
     co_return result;
 }
