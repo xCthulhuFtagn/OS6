@@ -70,6 +70,10 @@
         "typeindex": "cpp",
         "typeinfo": "cpp",
         "variant": "cpp",
-        "semaphore": "cpp"
+        "semaphore": "cpp",
+        "*.ipp": "cpp",
+        "strstream": "cpp",
+        "fstream": "cpp",
+        "shared_mutex": "cpp"
     }
 }

@@ -38,13 +38,13 @@ endmacro()
 #################
 ###  BOOST
 #################
-set(CONAN_BOOST_ROOT "/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2")
-set(CONAN_INCLUDE_DIRS_BOOST "/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include")
-set(CONAN_LIB_DIRS_BOOST "/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/lib")
+set(CONAN_BOOST_ROOT "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc")
+set(CONAN_INCLUDE_DIRS_BOOST "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/include")
+set(CONAN_LIB_DIRS_BOOST "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib")
 set(CONAN_BIN_DIRS_BOOST )
 set(CONAN_RES_DIRS_BOOST )
 set(CONAN_SRC_DIRS_BOOST )
-set(CONAN_BUILD_DIRS_BOOST "/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/")
+set(CONAN_BUILD_DIRS_BOOST "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/")
 set(CONAN_FRAMEWORK_DIRS_BOOST )
 set(CONAN_LIBS_BOOST boost_contract boost_coroutine boost_fiber_numa boost_fiber boost_context boost_graph boost_iostreams boost_json boost_locale boost_log_setup boost_log boost_math_c99 boost_math_c99f boost_math_c99l boost_math_tr1 boost_math_tr1f boost_math_tr1l boost_nowide boost_program_options boost_random boost_regex boost_stacktrace_addr2line boost_stacktrace_backtrace boost_stacktrace_basic boost_stacktrace_noop boost_timer boost_type_erasure boost_thread boost_chrono boost_container boost_date_time boost_unit_test_framework boost_prg_exec_monitor boost_test_exec_monitor boost_exception boost_wave boost_filesystem boost_atomic boost_wserialization boost_serialization)
 set(CONAN_PKG_LIBS_BOOST boost_contract boost_coroutine boost_fiber_numa boost_fiber boost_context boost_graph boost_iostreams boost_json boost_locale boost_log_setup boost_log boost_math_c99 boost_math_c99f boost_math_c99l boost_math_tr1 boost_math_tr1f boost_math_tr1l boost_nowide boost_program_options boost_random boost_regex boost_stacktrace_addr2line boost_stacktrace_backtrace boost_stacktrace_basic boost_stacktrace_noop boost_timer boost_type_erasure boost_thread boost_chrono boost_container boost_date_time boost_unit_test_framework boost_prg_exec_monitor boost_test_exec_monitor boost_exception boost_wave boost_filesystem boost_atomic boost_wserialization boost_serialization)
@@ -82,13 +82,13 @@ set(CONAN_LIBS_BOOST ${CONAN_PKG_LIBS_BOOST} ${CONAN_SYSTEM_LIBS_BOOST} ${CONAN_
 #################
 ###  ZLIB
 #################
-set(CONAN_ZLIB_ROOT "/home/owner/.conan/data/zlib/1.2.12/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646")
-set(CONAN_INCLUDE_DIRS_ZLIB "/home/owner/.conan/data/zlib/1.2.12/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/include")
-set(CONAN_LIB_DIRS_ZLIB "/home/owner/.conan/data/zlib/1.2.12/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/lib")
+set(CONAN_ZLIB_ROOT "/home/owner/.conan/data/zlib/1.2.12/_/_/package/be27726f9885116da1158027505be62e913cd585")
+set(CONAN_INCLUDE_DIRS_ZLIB "/home/owner/.conan/data/zlib/1.2.12/_/_/package/be27726f9885116da1158027505be62e913cd585/include")
+set(CONAN_LIB_DIRS_ZLIB "/home/owner/.conan/data/zlib/1.2.12/_/_/package/be27726f9885116da1158027505be62e913cd585/lib")
 set(CONAN_BIN_DIRS_ZLIB )
 set(CONAN_RES_DIRS_ZLIB )
 set(CONAN_SRC_DIRS_ZLIB )
-set(CONAN_BUILD_DIRS_ZLIB "/home/owner/.conan/data/zlib/1.2.12/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/")
+set(CONAN_BUILD_DIRS_ZLIB "/home/owner/.conan/data/zlib/1.2.12/_/_/package/be27726f9885116da1158027505be62e913cd585/")
 set(CONAN_FRAMEWORK_DIRS_ZLIB )
 set(CONAN_LIBS_ZLIB z)
 set(CONAN_PKG_LIBS_ZLIB z)
@@ -120,13 +120,13 @@ set(CONAN_LIBS_ZLIB ${CONAN_PKG_LIBS_ZLIB} ${CONAN_SYSTEM_LIBS_ZLIB} ${CONAN_FRA
 #################
 ###  BZIP2
 #################
-set(CONAN_BZIP2_ROOT "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/c32092bf4d4bb47cf962af898e02823f499b017e")
-set(CONAN_INCLUDE_DIRS_BZIP2 "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/c32092bf4d4bb47cf962af898e02823f499b017e/include")
-set(CONAN_LIB_DIRS_BZIP2 "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/c32092bf4d4bb47cf962af898e02823f499b017e/lib")
-set(CONAN_BIN_DIRS_BZIP2 "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/c32092bf4d4bb47cf962af898e02823f499b017e/bin")
+set(CONAN_BZIP2_ROOT "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515")
+set(CONAN_INCLUDE_DIRS_BZIP2 "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/include")
+set(CONAN_LIB_DIRS_BZIP2 "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/lib")
+set(CONAN_BIN_DIRS_BZIP2 "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/bin")
 set(CONAN_RES_DIRS_BZIP2 )
 set(CONAN_SRC_DIRS_BZIP2 )
-set(CONAN_BUILD_DIRS_BZIP2 "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/c32092bf4d4bb47cf962af898e02823f499b017e/")
+set(CONAN_BUILD_DIRS_BZIP2 "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/")
 set(CONAN_FRAMEWORK_DIRS_BZIP2 )
 set(CONAN_LIBS_BZIP2 bz2)
 set(CONAN_PKG_LIBS_BZIP2 bz2)
@@ -158,13 +158,13 @@ set(CONAN_LIBS_BZIP2 ${CONAN_PKG_LIBS_BZIP2} ${CONAN_SYSTEM_LIBS_BZIP2} ${CONAN_
 #################
 ###  LIBBACKTRACE
 #################
-set(CONAN_LIBBACKTRACE_ROOT "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646")
-set(CONAN_INCLUDE_DIRS_LIBBACKTRACE "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/include")
-set(CONAN_LIB_DIRS_LIBBACKTRACE "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/lib")
+set(CONAN_LIBBACKTRACE_ROOT "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/be27726f9885116da1158027505be62e913cd585")
+set(CONAN_INCLUDE_DIRS_LIBBACKTRACE "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/be27726f9885116da1158027505be62e913cd585/include")
+set(CONAN_LIB_DIRS_LIBBACKTRACE "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/be27726f9885116da1158027505be62e913cd585/lib")
 set(CONAN_BIN_DIRS_LIBBACKTRACE )
 set(CONAN_RES_DIRS_LIBBACKTRACE )
 set(CONAN_SRC_DIRS_LIBBACKTRACE )
-set(CONAN_BUILD_DIRS_LIBBACKTRACE "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/")
+set(CONAN_BUILD_DIRS_LIBBACKTRACE "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/be27726f9885116da1158027505be62e913cd585/")
 set(CONAN_FRAMEWORK_DIRS_LIBBACKTRACE )
 set(CONAN_LIBS_LIBBACKTRACE backtrace)
 set(CONAN_PKG_LIBS_LIBBACKTRACE backtrace)
@@ -200,9 +200,9 @@ set(CONAN_PACKAGE_VERSION None)
 
 set(CONAN_SETTINGS_ARCH "x86_64")
 set(CONAN_SETTINGS_ARCH_BUILD "x86_64")
-set(CONAN_SETTINGS_BUILD_TYPE "Release")
+set(CONAN_SETTINGS_BUILD_TYPE "Debug")
 set(CONAN_SETTINGS_COMPILER "gcc")
-set(CONAN_SETTINGS_COMPILER_LIBCXX "libstdc++")
+set(CONAN_SETTINGS_COMPILER_LIBCXX "libstdc++11")
 set(CONAN_SETTINGS_COMPILER_VERSION "11")
 set(CONAN_SETTINGS_OS "Linux")
 set(CONAN_SETTINGS_OS_BUILD "Linux")
@@ -215,15 +215,15 @@ set(CONAN_CMD_SHARED_LINKER_FLAGS ${CONAN_SHARED_LINKER_FLAGS})
 set(CONAN_CMD_C_FLAGS ${CONAN_C_FLAGS})
 # Defining accumulated conan variables for all deps
 
-set(CONAN_INCLUDE_DIRS "/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include"
-			"/home/owner/.conan/data/zlib/1.2.12/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/include"
-			"/home/owner/.conan/data/bzip2/1.0.8/_/_/package/c32092bf4d4bb47cf962af898e02823f499b017e/include"
-			"/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/include" ${CONAN_INCLUDE_DIRS})
-set(CONAN_LIB_DIRS "/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/lib"
-			"/home/owner/.conan/data/zlib/1.2.12/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/lib"
-			"/home/owner/.conan/data/bzip2/1.0.8/_/_/package/c32092bf4d4bb47cf962af898e02823f499b017e/lib"
-			"/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/lib" ${CONAN_LIB_DIRS})
-set(CONAN_BIN_DIRS "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/c32092bf4d4bb47cf962af898e02823f499b017e/bin" ${CONAN_BIN_DIRS})
+set(CONAN_INCLUDE_DIRS "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/include"
+			"/home/owner/.conan/data/zlib/1.2.12/_/_/package/be27726f9885116da1158027505be62e913cd585/include"
+			"/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/include"
+			"/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/be27726f9885116da1158027505be62e913cd585/include" ${CONAN_INCLUDE_DIRS})
+set(CONAN_LIB_DIRS "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib"
+			"/home/owner/.conan/data/zlib/1.2.12/_/_/package/be27726f9885116da1158027505be62e913cd585/lib"
+			"/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/lib"
+			"/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/be27726f9885116da1158027505be62e913cd585/lib" ${CONAN_LIB_DIRS})
+set(CONAN_BIN_DIRS "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/bin" ${CONAN_BIN_DIRS})
 set(CONAN_RES_DIRS  ${CONAN_RES_DIRS})
 set(CONAN_FRAMEWORK_DIRS  ${CONAN_FRAMEWORK_DIRS})
 set(CONAN_LIBS boost_contract boost_coroutine boost_fiber_numa boost_fiber boost_context boost_graph boost_iostreams boost_json boost_locale boost_log_setup boost_log boost_math_c99 boost_math_c99f boost_math_c99l boost_math_tr1 boost_math_tr1f boost_math_tr1l boost_nowide boost_program_options boost_random boost_regex boost_stacktrace_addr2line boost_stacktrace_backtrace boost_stacktrace_basic boost_stacktrace_noop boost_timer boost_type_erasure boost_thread boost_chrono boost_container boost_date_time boost_unit_test_framework boost_prg_exec_monitor boost_test_exec_monitor boost_exception boost_wave boost_filesystem boost_atomic boost_wserialization boost_serialization z bz2 backtrace ${CONAN_LIBS})
@@ -236,10 +236,10 @@ set(CONAN_DEFINES "-DBOOST_STACKTRACE_ADDR2LINE_LOCATION=\"/usr/bin/addr2line\""
 			"-DBOOST_STACKTRACE_USE_BACKTRACE"
 			"-DBOOST_STACKTRACE_USE_NOOP" ${CONAN_DEFINES})
 set(CONAN_BUILD_MODULES_PATHS  ${CONAN_BUILD_MODULES_PATHS})
-set(CONAN_CMAKE_MODULE_PATH "/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/"
-			"/home/owner/.conan/data/zlib/1.2.12/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/"
-			"/home/owner/.conan/data/bzip2/1.0.8/_/_/package/c32092bf4d4bb47cf962af898e02823f499b017e/"
-			"/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/dfbe50feef7f3c6223a476cd5aeadb687084a646/" ${CONAN_CMAKE_MODULE_PATH})
+set(CONAN_CMAKE_MODULE_PATH "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/"
+			"/home/owner/.conan/data/zlib/1.2.12/_/_/package/be27726f9885116da1158027505be62e913cd585/"
+			"/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/"
+			"/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/be27726f9885116da1158027505be62e913cd585/" ${CONAN_CMAKE_MODULE_PATH})
 
 set(CONAN_CXX_FLAGS " ${CONAN_CXX_FLAGS}")
 set(CONAN_SHARED_LINKER_FLAGS " ${CONAN_SHARED_LINKER_FLAGS}")

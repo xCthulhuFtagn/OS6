@@ -142,6 +142,33 @@ tester/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tester.dir/build.make CMakeFiles/tester.dir/build
 .PHONY : tester/fast
 
+logger.o: logger.cpp.o
+
+.PHONY : logger.o
+
+# target to build an object file
+logger.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tester.dir/build.make CMakeFiles/tester.dir/logger.cpp.o
+.PHONY : logger.cpp.o
+
+logger.i: logger.cpp.i
+
+.PHONY : logger.i
+
+# target to preprocess a source file
+logger.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tester.dir/build.make CMakeFiles/tester.dir/logger.cpp.i
+.PHONY : logger.cpp.i
+
+logger.s: logger.cpp.s
+
+.PHONY : logger.s
+
+# target to generate assembly for a file
+logger.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tester.dir/build.make CMakeFiles/tester.dir/logger.cpp.s
+.PHONY : logger.cpp.s
+
 main.o: main.cpp.o
 
 .PHONY : main.o
@@ -178,6 +205,9 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... tester"
+	@echo "... logger.o"
+	@echo "... logger.i"
+	@echo "... logger.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"

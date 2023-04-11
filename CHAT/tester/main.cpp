@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <boost/array.hpp>
+
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/asio/use_awaitable.hpp>
@@ -18,6 +19,11 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/co_spawn.hpp>
+#include <boost/asio/connect.hpp>
+
+#include <boost/json.hpp>
+
+#include "logger.h"
 
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
@@ -102,6 +108,10 @@ net::awaitable<void> Write(tcp::socket* socket, client_data_t&& request){
 
     if(ec) {
         //log here
+        boost::json::value data = {
+            {"error", ec.what()}
+        };
+        logger::Logger::GetInstance().Log("Client write error"sv, data);
         throw ec;
     }
 
@@ -133,31 +143,39 @@ net::awaitable<server_data_t> Read(tcp::socket* socket){
             );
             if(ec2) {
                 //log here
+                boost::json::value data = {
+                    {"error", ec.what()}
+                };
+                logger::Logger::GetInstance().Log("Client read error"sv, data);
                 throw ec2;
             }
         }
         else {
             //log here 
+            boost::json::value data = {
+                {"error", ec.what()}
+            };
+            logger::Logger::GetInstance().Log("Client read error"sv, data);
             throw ec;
         }
         co_return response;
 }
 
-std::vector<std::string> SplitString(const std::string& str, const std::string& delimiter){
+std::vector<std::string> SplitString(std::string str, const std::string& delimiter){
 
-    size_t start = 0, end;
+    size_t pos;
     std::vector<std::string> split;
-    while ((end = str.find(delimiter)) != std::string::npos) {
-        split.push_back(str.substr(start, end));
-        start += split.rbegin()->length() + delimiter.length();
+    while ((pos = str.find(delimiter)) != std::string::npos) {
+        split.push_back(str.substr(0, pos));
+        str.erase(0, pos + delimiter.length());
     }
     return split;
 }
 
 
-boost::asio::awaitable<void> User(tcp::socket&& socket_){
+boost::asio::awaitable<void> User(tcp::socket socket){
     try{
-        tcp::socket socket(std::move(socket_));
+        // tcp::socket socket(std::move(socket_));
 
         client_data_t request;
         server_data_t response;
@@ -173,7 +191,7 @@ boost::asio::awaitable<void> User(tcp::socket&& socket_){
         do{ // try until the name will be set
             //generating random name
             std::stringstream ss;
-            ss << std::setw(8) << std::setfill('0') << std::hex << generator();
+            ss << "Bot" << std::setw(8) << std::setfill('0') << std::hex << generator();
             request.message_text = ss.str();
             request.request = c_set_name;
 
@@ -244,9 +262,22 @@ boost::asio::awaitable<void> User(tcp::socket&& socket_){
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //after exiting the chat loop user returns to out-of-chat loop
         }
-    } catch(...){
-        std::cout << "Error occured!" << std::endl;
     }
+    catch(sys::error_code& ec){}
+    catch(std::exception& ex){
+        boost::json::value data = {
+            {"exception", ex.what()}
+        };
+        logger::Logger::GetInstance().Log("Client caught exception"sv, data);
+    }
+    catch(...){
+        boost::json::value data = {};
+        logger::Logger::GetInstance().Log("Client unknown error"sv, data);
+    }
+
+    boost::json::value data = {};
+    logger::Logger::GetInstance().Log("Client finished it's work"sv, data);
+
     co_return;
 }
 
@@ -257,6 +288,9 @@ int main(int argc, const char* argv[]) {
     }
     int N = std::stoi(argv[1]);
     try {
+
+        LOG_INIT()
+
         // 1. Инициализируем io_context
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
@@ -273,19 +307,27 @@ int main(int argc, const char* argv[]) {
         // 3. Настройка сетевых параметров
         constexpr boost::asio::ip::port_type port = 5000;
         // пока локальный адрес, но дальше надо вписать другой
-        const auto address = net::ip::tcp::endpoint(net::ip::tcp::v4(), port).address();  
-        net::ip::tcp::endpoint endpoint = {address, port};
-
+        net::ip::tcp::endpoint endpoint = net::ip::tcp::endpoint(net::ip::address_v4::from_string("127.0.0.1"), port);  
 
         //4. Запускаем N клиентов внутри контекста
         for(auto i = 0; i < N; ++i){
             tcp::socket socket(ioc);
-            socket.connect(endpoint);
+            tcp::resolver resolver(ioc);
+            net::connect(socket, resolver.resolve(endpoint));
             boost::asio::co_spawn(ioc, User(std::move(socket)), net::detached);
+            // [](std::exception_ptr ec)
+            // {
+            //     std::cout << "Handler" << std::endl;
+            //     throw ec; 
+            // });
         }
 
         // Эта надпись сообщает тестам о том, что тестер запущен и готов генерировать нагрузку
-        std::cout << "Tester has started..."sv << std::endl;
+        boost::json::value data = {
+            {"port", port},
+            {"endpoint address", endpoint.address().to_string()}
+        };
+        logger::Logger::GetInstance().Log("Tester started"sv, data);
 
         // 5. Запускаем обработку асинхронных операций
         RunThreads(std::max(1u, num_threads), [&ioc] {
@@ -293,7 +335,10 @@ int main(int argc, const char* argv[]) {
         });
     }
     catch (const std::exception& ex) {
-        std::cerr << ex.what() << std::endl;
+        boost::json::value data = {
+            {"exception", ex.what()}
+        };
+        logger::Logger::GetInstance().Log("Tester caught exception"sv, data);
         return EXIT_FAILURE;
     }
 }

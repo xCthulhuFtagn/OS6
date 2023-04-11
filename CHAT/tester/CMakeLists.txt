@@ -4,7 +4,7 @@ project(server_async)
 set(CMAKE_CXX_STANDARD 20)
 
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
+conan_basic_setup(TARGETS)
 
 
 find_package(Boost 1.78.0 REQUIRED)
@@ -16,7 +16,10 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 add_executable(tester 
-                    main.cpp 
-                    )
+                  main.cpp 
+                  logger.h
+                  logger.cpp
+              )
 
-target_link_libraries(tester PRIVATE Threads::Threads)
+target_include_directories(tester PRIVATE CONAN_PKG::boost)
+target_link_libraries(tester PRIVATE Threads::Threads CONAN_PKG::boost)

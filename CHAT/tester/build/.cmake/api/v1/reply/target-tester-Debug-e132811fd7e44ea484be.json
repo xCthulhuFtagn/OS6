@@ -1,0 +1,377 @@
+{
+	"artifacts" : 
+	[
+		{
+			"path" : "bin/tester"
+		}
+	],
+	"backtrace" : 1,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_executable",
+			"target_link_libraries",
+			"include_directories",
+			"target_include_directories"
+		],
+		"files" : 
+		[
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 18,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 25,
+				"parent" : 0
+			},
+			{
+				"command" : 2,
+				"file" : 0,
+				"line" : 12,
+				"parent" : 0
+			},
+			{
+				"command" : 3,
+				"file" : 0,
+				"line" : 24,
+				"parent" : 0
+			}
+		]
+	},
+	"compileGroups" : 
+	[
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : "-g"
+				},
+				{
+					"backtrace" : 2,
+					"fragment" : "-pthread"
+				},
+				{
+					"fragment" : "-std=gnu++2a"
+				}
+			],
+			"defines" : 
+			[
+				{
+					"backtrace" : 2,
+					"define" : "BOOST_STACKTRACE_ADDR2LINE_LOCATION=\"/usr/bin/addr2line\""
+				},
+				{
+					"backtrace" : 2,
+					"define" : "BOOST_STACKTRACE_USE_ADDR2LINE"
+				},
+				{
+					"backtrace" : 2,
+					"define" : "BOOST_STACKTRACE_USE_BACKTRACE"
+				},
+				{
+					"backtrace" : 2,
+					"define" : "BOOST_STACKTRACE_USE_NOOP"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 3,
+					"path" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include"
+				},
+				{
+					"backtrace" : 4,
+					"path" : "/home/owner/Desktop/dev/cpp/programming/OS6/CHAT/tester/CONAN_PKG::boost"
+				},
+				{
+					"backtrace" : 2,
+					"isSystem" : true,
+					"path" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/include"
+				},
+				{
+					"backtrace" : 2,
+					"isSystem" : true,
+					"path" : "/home/owner/.conan/data/zlib/1.2.12/_/_/package/be27726f9885116da1158027505be62e913cd585/include"
+				},
+				{
+					"backtrace" : 2,
+					"isSystem" : true,
+					"path" : "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/include"
+				},
+				{
+					"backtrace" : 2,
+					"isSystem" : true,
+					"path" : "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/be27726f9885116da1158027505be62e913cd585/include"
+				}
+			],
+			"language" : "CXX",
+			"sourceIndexes" : 
+			[
+				0,
+				2
+			]
+		}
+	],
+	"id" : "tester::@6890427a1f51a3e7e1df",
+	"link" : 
+	{
+		"commandFragments" : 
+		[
+			{
+				"fragment" : "-g",
+				"role" : "flags"
+			},
+			{
+				"fragment" : "",
+				"role" : "flags"
+			},
+			{
+				"fragment" : "-pthread",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_contract.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_coroutine.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_fiber_numa.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_fiber.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_context.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_graph.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_iostreams.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_json.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_locale.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_log_setup.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_log.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_math_c99.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_math_c99f.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_math_c99l.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_math_tr1.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_math_tr1f.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_math_tr1l.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_nowide.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_program_options.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_random.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_regex.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_stacktrace_addr2line.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_stacktrace_backtrace.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_stacktrace_basic.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_stacktrace_noop.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_timer.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_type_erasure.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_thread.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_chrono.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_container.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_date_time.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_unit_test_framework.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_prg_exec_monitor.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_test_exec_monitor.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_exception.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_wave.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_filesystem.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_atomic.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_wserialization.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/boost/1.78.0/_/_/package/8cc3305c27e5ff838d1c7590662e309638310dfc/lib/libboost_serialization.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "-ldl",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "-lrt",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "-lpthread",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/zlib/1.2.12/_/_/package/be27726f9885116da1158027505be62e913cd585/lib/libz.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/bzip2/1.0.8/_/_/package/76bd63d0cd275bc555bda09b7f93740254ba3515/lib/libbz2.a",
+				"role" : "libraries"
+			},
+			{
+				"fragment" : "/home/owner/.conan/data/libbacktrace/cci.20210118/_/_/package/be27726f9885116da1158027505be62e913cd585/lib/libbacktrace.a",
+				"role" : "libraries"
+			}
+		],
+		"language" : "CXX"
+	},
+	"name" : "tester",
+	"nameOnDisk" : "tester",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "Source Files",
+			"sourceIndexes" : 
+			[
+				0,
+				2
+			]
+		},
+		{
+			"name" : "Header Files",
+			"sourceIndexes" : 
+			[
+				1
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "main.cpp",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 1,
+			"path" : "logger.h",
+			"sourceGroupIndex" : 1
+		},
+		{
+			"backtrace" : 1,
+			"compileGroupIndex" : 0,
+			"path" : "logger.cpp",
+			"sourceGroupIndex" : 0
+		}
+	],
+	"type" : "EXECUTABLE"
+}

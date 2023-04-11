@@ -1,5 +1,6 @@
 #include "server_interface.h"
 #include "server_routines.h"
+#include "logger.h"
 
 extern std::unordered_map<std::string, chat_info> chats;
 extern std::unordered_set<std::string> used_usernames;
@@ -11,6 +12,8 @@ extern int username_enter_pipe[2];
 
 int main(int argc, char *argv[])
 {
+    LOG_INIT()
+
     using namespace std::chrono_literals;
     if (!server_starting())
         exit(EXIT_FAILURE);
@@ -34,31 +37,36 @@ int main(int argc, char *argv[])
      */
     if (bind(listen_socket, (struct sockaddr *)&address, sizeof(address)) == -1)
     {
-        perror("Bind error");
+        boost::json::value data = {};
+        logger::Logger::GetInstance().Log("Bind error"sv, data);
         close(listen_socket);
         return EXIT_FAILURE;
     }
 
     if (listen(listen_socket, 1000) == -1)
     {
-        perror("Listen error");
+        boost::json::value data = {};
+        logger::Logger::GetInstance().Log("Listen error"sv, data);
         shutdown(listen_socket, SHUT_RDWR);
         return EXIT_FAILURE;
     }
     if(pipe(list_chats_pipe) < 0){
-        perror("List of chats pipe opening error");
+        boost::json::value data = {};
+        logger::Logger::GetInstance().Log("List of chats pipe opening error"sv, data);
         shutdown(listen_socket, SHUT_RDWR);
         return EXIT_FAILURE;
     }
     if(pipe(disco_pipe) < 0){
-        perror("Disconnection pipe opening error");
+        boost::json::value data = {};
+        logger::Logger::GetInstance().Log("Disconnection pipe opening error"sv, data);
         shutdown(listen_socket, SHUT_RDWR);
         close(list_chats_pipe[0]);
         close(list_chats_pipe[1]);
         return EXIT_FAILURE;
     }
     if(pipe(username_enter_pipe) < 0){
-        perror("Username enter pipe opening error");
+        boost::json::value data = {};
+        logger::Logger::GetInstance().Log("Username enter pipe opening error"sv, data);
         shutdown(listen_socket, SHUT_RDWR);
         close(list_chats_pipe[0]);
         close(list_chats_pipe[1]);
@@ -87,10 +95,11 @@ int main(int argc, char *argv[])
     }
     if (!(errno & (EAGAIN | EWOULDBLOCK)))
     {
-        perror("Accept failure");
+        boost::json::value data = {};
+        logger::Logger::GetInstance().Log("Accept failure"sv, data);
         return EXIT_FAILURE;
     }
-    perror("Server died with status");
+    // perror("Server died with status");
     server_ending(); // because why not
     exit(EXIT_SUCCESS);
 }
