@@ -33,6 +33,29 @@ void server_ending(){
     logger::Logger::GetInstance().Log("Server ended"sv, data);
 }
 
+std::string StringifyRequest(client_request_e r){
+    switch(r){
+        case 0: return "c_set_name"s;
+        case 1: return "c_create_chat"s;
+        case 2: return "c_connect_chat"s;
+        case 3: return "c_send_message"s;
+        case 4: return "c_leave_chat"s;
+        case 5: return "c_disconnect"s;
+        case 6: return "c_receive_message"s;
+        case 7: return "c_wrong_request"s;
+        case 8: return "c_get_chats"s;
+        default: return "wrong input"s;
+    }
+}
+
+std::string StringifyResponse(server_response_e r){
+    switch(r){
+        case 0: return "s_success"s;
+        case 1: return "s_failure"s;
+        default: return "wrong input"s;
+    }
+}
+
 int read_request_from_client(client_data_t* received, int sockfd){
     size_t length;
     int err;
@@ -54,7 +77,7 @@ int read_request_from_client(client_data_t* received, int sockfd){
     boost::json::value data = {
         {"request", 
             {   
-                {"client_request_e", int(received->request)},
+                {"client_request_e", StringifyRequest(received->request)},
                 {"message", received->message_text}
             }
         }
@@ -70,7 +93,7 @@ void send_resp_to_client(const server_data_t* resp, int sockfd){
     #endif
     int written_bytes;
     written_bytes = send(sockfd, (void*)(&resp->request), sizeof(client_request_e), MSG_WAITALL);
-    written_bytes = send(sockfd, (void*)(&resp->responce), sizeof(server_responce_e), MSG_WAITALL);
+    written_bytes = send(sockfd, (void*)(&resp->responce), sizeof(server_response_e), MSG_WAITALL);
     size_t length = resp->message_text.size();
     written_bytes = send(sockfd, (void*)(&length), sizeof(size_t), MSG_WAITALL);
     written_bytes = send(sockfd, (void*)(resp->message_text.c_str()), resp->message_text.size(), MSG_WAITALL);
@@ -78,8 +101,8 @@ void send_resp_to_client(const server_data_t* resp, int sockfd){
     boost::json::value data = {
         {"response", 
             {   
-                {"client_request_e", int(resp->request)},
-                {"server_response_e", int(resp->responce)},
+                {"client_request_e", StringifyRequest(resp->request)},
+                {"server_response_e", StringifyResponse(resp->responce)},
                 {"message", resp->message_text}
             }
         }

@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
      */
     if (bind(listen_socket, (struct sockaddr *)&address, sizeof(address)) == -1)
     {
-        boost::json::value data = {};
+        boost::json::value data = {{"error code", std::error_code{errno, std::generic_category()}.message()}};
         logger::Logger::GetInstance().Log("Bind error"sv, data);
         close(listen_socket);
         return EXIT_FAILURE;
@@ -45,19 +45,19 @@ int main(int argc, char *argv[])
 
     if (listen(listen_socket, 1000) == -1)
     {
-        boost::json::value data = {};
+        boost::json::value data = {{"error code", std::error_code{errno, std::generic_category()}.message()}};
         logger::Logger::GetInstance().Log("Listen error"sv, data);
         shutdown(listen_socket, SHUT_RDWR);
         return EXIT_FAILURE;
     }
     if(pipe(list_chats_pipe) < 0){
-        boost::json::value data = {};
+        boost::json::value data = {{"error code", std::error_code{errno, std::generic_category()}.message()}};
         logger::Logger::GetInstance().Log("List of chats pipe opening error"sv, data);
         shutdown(listen_socket, SHUT_RDWR);
         return EXIT_FAILURE;
     }
     if(pipe(disco_pipe) < 0){
-        boost::json::value data = {};
+        boost::json::value data = {{"error code", std::error_code{errno, std::generic_category()}.message()}};
         logger::Logger::GetInstance().Log("Disconnection pipe opening error"sv, data);
         shutdown(listen_socket, SHUT_RDWR);
         close(list_chats_pipe[0]);
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
     if(pipe(username_enter_pipe) < 0){
-        boost::json::value data = {};
+        boost::json::value data = {{"error code", std::error_code{errno, std::generic_category()}.message()}};
         logger::Logger::GetInstance().Log("Username enter pipe opening error"sv, data);
         shutdown(listen_socket, SHUT_RDWR);
         close(list_chats_pipe[0]);
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
     }
     if (!(errno & (EAGAIN | EWOULDBLOCK)))
     {
-        boost::json::value data = {};
+        boost::json::value data = {{"error code", std::error_code{errno, std::generic_category()}.message()}};
         logger::Logger::GetInstance().Log("Accept failure"sv, data);
         return EXIT_FAILURE;
     }

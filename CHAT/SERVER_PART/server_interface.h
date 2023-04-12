@@ -53,7 +53,7 @@ typedef enum {
     s_success = 0,
     s_failure,
     // s_new_message
-} server_responce_e;
+} server_response_e;
 
 typedef struct {
     client_request_e request;
@@ -62,7 +62,7 @@ typedef struct {
 
 typedef struct {
     client_request_e request;
-    server_responce_e responce;
+    server_response_e responce;
     std::string message_text;
 } server_data_t;
 
@@ -83,3 +83,7 @@ int read_request_from_client(client_data_t* received, int sockfd);
 void send_resp_to_client(const server_data_t* resp, int sockfd);
 void send_available_chats(int sockfd);
 void end_resp_to_client(int sockfd);
+
+std::string StringifyRequest(client_request_e r);
+
+std::string StringifyResponse(server_response_e r);

@@ -75,5 +75,10 @@
         "strstream": "cpp",
         "fstream": "cpp",
         "shared_mutex": "cpp"
+    },
+    "cmake.debugConfig": {
+        "args": [
+            "1"
+        ]
     }
 }

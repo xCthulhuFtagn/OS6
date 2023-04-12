@@ -88,6 +88,29 @@ void RunThreads(unsigned n, const Fn& fn) {
     fn();
 }
 
+std::string StringifyRequest(client_request_e r){
+    switch(r){
+        case 0: return "c_set_name"s;
+        case 1: return "c_create_chat"s;
+        case 2: return "c_connect_chat"s;
+        case 3: return "c_send_message"s;
+        case 4: return "c_leave_chat"s;
+        case 5: return "c_disconnect"s;
+        case 6: return "c_receive_message"s;
+        case 7: return "c_wrong_request"s;
+        case 8: return "c_get_chats"s;
+        default: return "wrong input"s;
+    }
+}
+
+std::string StringifyResponse(server_response_e r){
+    switch(r){
+        case 0: return "s_success"s;
+        case 1: return "s_failure"s;
+        default: return "wrong input"s;
+    }
+}
+
 net::awaitable<void> Write(tcp::socket* socket, client_data_t&& request){
     size_t message_length = request.message_text.size();
     auto safe_request = request;
@@ -115,7 +138,15 @@ net::awaitable<void> Write(tcp::socket* socket, client_data_t&& request){
         throw ec;
     }
 
-    // std::cout << "Message sent" << std::endl;
+    boost::json::value data = {
+        {"request", 
+            {   
+                {"client_request_e", StringifyRequest(request.request)},
+                {"message", request.message_text}
+            }
+        }
+    };
+    logger::Logger::GetInstance().Log("Wrote request to server"sv, data);
 }
 
 net::awaitable<server_data_t> Read(tcp::socket* socket){
@@ -158,6 +189,16 @@ net::awaitable<server_data_t> Read(tcp::socket* socket){
             logger::Logger::GetInstance().Log("Client read error"sv, data);
             throw ec;
         }
+        boost::json::value data = {
+        {"response", 
+                {   
+                    {"client_request_e", StringifyRequest(response.request)},
+                    {"server_response_e", StringifyResponse(response.response)},
+                    {"message", response.message_text}
+                }
+            }
+        };
+        logger::Logger::GetInstance().Log("Read response from server"sv, data);
         co_return response;
 }
 
@@ -199,12 +240,13 @@ boost::asio::awaitable<void> User(tcp::socket socket){
             response = co_await Read(&socket);
         }while(response.response == s_failure);
 
-        while(true){ //loop to switch between being in or out of chat
+        while(true){ //loop to switch between being in and out of chat
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
             //list of chats
             //getting rid of extra messages
             do{
                 response = co_await Read(&socket); // receiving list of chats
-            }while(response.request != c_get_chats);
+            }while(response.request != c_get_chats); // other messages are just ignored
             //split here
             auto chats = SplitString(response.message_text, "\n"s);
 
@@ -214,13 +256,15 @@ boost::asio::awaitable<void> User(tcp::socket socket){
                     request.request = c_create_chat;
                     // generating random chat name
                     std::stringstream ss;
-                    ss << std::setw(8) << std::setfill('0') << std::hex << generator();
+                    ss  << "Chat" << std::setw(8) << std::setfill('0') << std::hex << generator();
                     request.message_text = ss.str();
                     co_await Write(&socket, std::move(request));
                     while(true){
                         response = co_await Read(&socket);
-                        if(response.request == c_get_chats) chats = SplitString(response.message_text, "\n"s);
-                        else break;
+                        if(response.request == c_get_chats) {
+                            chats = SplitString(response.message_text, "\n"s);
+                            break;
+                        }
                     }
                 }
                 else{ // connect to chat
@@ -240,9 +284,10 @@ boost::asio::awaitable<void> User(tcp::socket socket){
 
             while(true){ // chat loop
             //getting rid of extra messages
-                do{
+                while(socket.available() > 0){
                     response = co_await Read(&socket);
-                }while(response.request == c_get_chats || response.request == c_receive_message);
+                    if(response.request != c_get_chats && response.request != c_receive_message) break;
+                }
                 auto i = generator();
                 if(i % 100 < 5){ // 5% probability that user leaves chat
                     request.message_text.clear();
