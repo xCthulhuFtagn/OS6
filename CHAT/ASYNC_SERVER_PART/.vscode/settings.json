@@ -74,6 +74,8 @@
         "fstream": "cpp",
         "filesystem": "cpp",
         "coroutine": "cpp",
-        "source_location": "cpp"
+        "source_location": "cpp",
+        "strstream": "cpp",
+        "shared_mutex": "cpp"
     }
 }

@@ -57,6 +57,12 @@ typedef enum {
     s_failure,
 } server_response_e;
 
+using namespace std::literals;
+
+std::string StringifyRequest(client_request_e r);
+
+std::string StringifyResponse(server_response_e r);
+
 struct client_data_t : public std::enable_shared_from_this<client_data_t>{
     client_request_e request;
     std::string message_text;
@@ -68,7 +74,7 @@ struct server_data_t : public std::enable_shared_from_this<server_data_t>{
     std::string message_text;
 };
 
-void ReportError(beast::error_code ec, std::string_view what);
+// void ReportError(beast::error_code ec, std::string_view what);
 
 enum class client_state{
     no_name = 0,
@@ -117,15 +123,15 @@ public:
         }
     }
 
-    boost::asio::awaitable<void> AddUser(tcp::socket* socket, std::string username);
-    boost::asio::awaitable<void> SendMessage(tcp::socket* socket, std::string message);
-    boost::asio::awaitable<bool> ContainsUser(tcp::socket* socket);
+    boost::asio::awaitable<void> AddUser(std::shared_ptr<tcp::socket> socket, std::string username);
+    boost::asio::awaitable<void> SendMessage(std::shared_ptr<tcp::socket> socket, std::string message);
+    boost::asio::awaitable<bool> ContainsUser(std::shared_ptr<tcp::socket> socket);
 
-    boost::asio::awaitable<void> DeleteUser(tcp::socket* socket);
+    boost::asio::awaitable<void> DeleteUser(std::shared_ptr<tcp::socket> socket);
 private:
     net::strand<net::io_context::executor_type> strand;
-    std::unordered_map<tcp::socket*, std::streamoff> messages_offset; // Session to offset in chat file
-    std::unordered_map<tcp::socket*, std::string> usernames; // Session to username
+    std::unordered_map<std::shared_ptr<tcp::socket>, std::streamoff> messages_offset; // Session to offset in chat file
+    std::unordered_map<std::shared_ptr<tcp::socket>, std::string> usernames; // Session to username
     std::filesystem::path path; // Path to the file
 };
 
@@ -141,22 +147,22 @@ public:
         }
     }
 
-    boost::asio::awaitable<bool> SetName(std::string, tcp::socket*);
+    boost::asio::awaitable<bool> SetName(std::string, std::shared_ptr<tcp::socket>);
     boost::asio::awaitable<std::string> ChatList();
-    boost::asio::awaitable<void> UpdateChatList();
-    boost::asio::awaitable<void> ConnectChat(std::string, tcp::socket*);
+    boost::asio::awaitable<void> UpdateChatList(std::shared_ptr<tcp::socket>);
+    boost::asio::awaitable<void> ConnectChat(std::string, std::shared_ptr<tcp::socket>);
     boost::asio::awaitable<bool> CreateChat(std::string);
-    boost::asio::awaitable<bool> LeaveChat(tcp::socket*);
-    boost::asio::awaitable<void> SendMessage(std::string, tcp::socket*);
+    boost::asio::awaitable<bool> LeaveChat(std::shared_ptr<tcp::socket>);
+    boost::asio::awaitable<void> SendMessage(std::string, std::shared_ptr<tcp::socket>);
 
-    boost::asio::awaitable<void> Disconnect(tcp::socket*);
+    boost::asio::awaitable<void> Disconnect(std::shared_ptr<tcp::socket>);
 
-    boost::asio::awaitable<User*> IdentifyUser(tcp::socket*);
+    boost::asio::awaitable<User*> IdentifyUser(std::shared_ptr<tcp::socket>);
 
 private:
 
     std::unordered_map<std::string, Chat> chats_; // чаты с юзернеймами
-    std::unordered_map<tcp::socket*, User> users_; // юзеры
+    std::unordered_map<std::shared_ptr<tcp::socket>, User> users_; // юзеры
     net::io_context& io_;
     net::strand<net::io_context::executor_type> chats_strand_, usernames_strand_;
     std::filesystem::path path_of_chats;

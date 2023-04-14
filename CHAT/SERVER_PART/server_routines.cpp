@@ -20,15 +20,23 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
 
     int chat_epoll_fd = epoll_create1(0), chatfd;
     if (chat_epoll_fd < 0) {
-        perror("epoll create");
+        boost::json::value data = {
+            {"error", std::error_code{errno, std::generic_category()}.message()},
+            {"chat", chat_name}
+        };
+        logger::Logger::GetInstance().Log("Failed to create epoll"sv, data);
         return;
     }
     std::fstream chat_file(chat_name + ".chat");
     if (!chat_file) {
-        perror("chat file");
+        boost::json::value data = {
+            {"error", std::error_code{errno, std::generic_category()}.message()},
+            {"chat", chat_name}
+        };
+        logger::Logger::GetInstance().Log("Failed to open chat's file"sv, data);
         return;
     }
-    std::vector<epoll_event> vec_of_events;
+    std::vector<epoll_event> vec_of_events(10);
     std::unordered_map<int, std::streamoff> messages_offset;
     epoll_event ev;
     ev.events = EPOLLEXCLUSIVE | EPOLLIN | EPOLLET;
@@ -40,22 +48,31 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
     while (true) {
         // changing hashmap of events
         int read_bytes;
-        while ((read_bytes = read(go_in_chat_pipe_input, (void*)(&ev.data.fd), sizeof(int))) > 0) {
-            std::cout << "Bytes income: " << read_bytes << '\n';
+        while ((read_bytes = read(go_in_chat_pipe_input, &ev.data.fd, sizeof(int))) > 0) {
             boost::json::value data = {
                 {"chat", chat_name},
                 {"bytes received", read_bytes},
                 {"socket", ev.data.fd}
             };
             logger::Logger::GetInstance().Log("Client entered chat routine"sv, data);
-            vec_of_events.push_back(ev);
+            // vec_of_events.push_back(ev);
             messages_offset[ev.data.fd] = 0;
-            epoll_ctl(chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
+            if(epoll_ctl(chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev)){
+                boost::json::value data = {
+                    {"error", std::error_code{errno, std::generic_category()}.message()},
+                    {"socket", ev.data.fd},
+                    {"chat", chat_name}
+                };
+                logger::Logger::GetInstance().Log("Failed to add socket from epoll"sv, data);
+            }
         }
 
         if (read_bytes < 0 && errno != EAGAIN && errno != EINTR) {
-            fprintf(stderr, "pipe failed in %s", chat_name.c_str());
-            perror("");
+            boost::json::value data = {
+                {"error", std::error_code{errno, std::generic_category()}.message()},
+                {"chat", chat_name}
+            };
+            logger::Logger::GetInstance().Log("Pipe failed"sv, data);
             close(chat_epoll_fd);
             chat_file.close();
             return;
@@ -64,7 +81,11 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
         char timedate_string[100] = { 0 };
         int n = epoll_wait(chat_epoll_fd, vec_of_events.data(), vec_of_events.size(), 25);
         if (n < 0 && errno != EINVAL && errno != EINTR) {
-            perror("epoll wait");
+            boost::json::value data = {
+                {"error", std::error_code{errno, std::generic_category()}.message()},
+                {"chat", chat_name}
+            };
+            logger::Logger::GetInstance().Log("Epoll wait failed"sv, data);
             close(chat_epoll_fd);
             return;
         } else if (n > 0) {
@@ -80,14 +101,6 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                     {
                         case c_leave_chat:
                         {
-                            if(write(list_chats_pipe[1], &fd, sizeof(int)) < 0){
-                                // perror("Failed to send client's fd to no_chat routine");
-                                boost::json::value data = {
-                                    {"chat", chat_name},
-                                    {"socket", fd}
-                                };
-                                logger::Logger::GetInstance().Log("Failed to send client's fd to no_chat routine"sv, data);
-                            }
                             if(epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev) == -1){
                                 boost::json::value data = {
                                     {"error", std::error_code{errno, std::generic_category()}.message()},
@@ -98,13 +111,23 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                             }
                             messages_offset.erase(fd);
                             chats[chat_name].subs.erase(fd); //unsubscribing
+                            std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+                            if(write(list_chats_pipe[1], &fd, sizeof(int)) < 0){
+                                // perror("Failed to send client's fd to no_chat routine");
+                                boost::json::value data = {
+                                    {"error", std::error_code{errno, std::generic_category()}.message()},
+                                    {"socket", fd},
+                                    {"chat", chat_name}
+                                };
+                                logger::Logger::GetInstance().Log("Failed to send client's fd to no_chat routine"sv, data);
+                            }
                             boost::json::value data = {
                                 {"chat", chat_name},
                                 {"socket", fd}
                             };
                             logger::Logger::GetInstance().Log("User left chat"sv, data);
                         }
-                            break;
+                            goto OUT_OF_CYCLE;
                         case c_disconnect:
                         {
                             boost::json::value data = {
@@ -112,8 +135,7 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                                 {"socket", fd}
                             };
                             logger::Logger::GetInstance().Log("Disconnecting user"sv, data);
-                            write(disco_pipe[1], &fd, sizeof(int));
-                            while(epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev) == -1){
+                            if(epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev) == -1){
                                 boost::json::value data = {
                                     {"error", std::error_code{errno, std::generic_category()}.message()},
                                     {"socket", fd},
@@ -123,8 +145,10 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                             }
                             messages_offset.erase(fd);
                             chats[chat_name].subs.erase(fd); //unsubscribing
+                            std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+                            write(disco_pipe[1], &fd, sizeof(int));
                         }
-                            break;
+                            goto OUT_OF_CYCLE;
                         case c_send_message:
                         {
                             boost::json::value data = {
@@ -147,17 +171,20 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
                                 {"message", client_data.message_text}
                             };
                             logger::Logger::GetInstance().Log("Client sent unacceptable data"sv, data);
-                            break;
+                            goto OUT_OF_CYCLE;
                     }
                 }
+                OUT_OF_CYCLE:
                 if (err == 0) {
                     epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev);
-                    write(disco_pipe[1], &fd, sizeof(int));
                     messages_offset.erase(fd);
+                    chats[chat_name].subs.erase(fd); //unsubscribing
+                    std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+                    write(disco_pipe[1], &fd, sizeof(int));
                 }
             }
         }
-        else {
+        { // view for chat_locker
             std::lock_guard chat_locker(chats[chat_name].mtx);
             if(chats[chat_name].subs.empty()){
                 // fprintf(stderr, "closing routine for chat: %s\n", chat_name.c_str());
@@ -181,14 +208,37 @@ void chat_message(int go_in_chat_pipe_input, std::string chat_name) {
         chat_file.seekp(0, chat_file.end);
         auto file_size = chat_file.tellp();
         server_data.request = c_receive_message;
+
+        std::unordered_set<int> closed_sockets;
+
         for (auto& [fd, off] : messages_offset) {
             chat_file.seekg(off, chat_file.beg);
             while (off != file_size) {
                 //maybe check for chat_file.bad()
                 std::getline(chat_file, server_data.message_text, '\r');
                 off = chat_file.tellp();
-                send_resp_to_client(&server_data, fd);
+                if(!send_resp_to_client(&server_data, fd)) closed_sockets.insert(fd);
             }
+        }
+
+        for(auto fd : closed_sockets){ // getting rid of sockets that were closed during being written into
+            boost::json::value data = {
+                {"chat", chat_name},
+                {"socket", fd}
+            };
+            logger::Logger::GetInstance().Log("Disconnecting user"sv, data);
+            if(epoll_ctl(chat_epoll_fd, EPOLL_CTL_DEL, fd, &ev) == -1){
+                boost::json::value data = {
+                    {"error", std::error_code{errno, std::generic_category()}.message()},
+                    {"socket", fd},
+                    {"chat", chat_name}
+                };
+                logger::Logger::GetInstance().Log("Failed to remove socket from epoll"sv, data);
+            }
+            messages_offset.erase(fd);
+            chats[chat_name].subs.erase(fd); //unsubscribing
+            std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+            write(disco_pipe[1], &fd, sizeof(int));
         }
     }
 }
@@ -197,11 +247,13 @@ void list_of_chats(int end_to_read_from) {
     int no_chat_epoll_fd = epoll_create1(0);
     if (no_chat_epoll_fd < 0) {
         // perror("epoll create");
-        boost::json::value data = {};
+        boost::json::value data = {
+            {"error", std::error_code{errno, std::generic_category()}.message()}
+        };
         logger::Logger::GetInstance().Log("list of chats epoll create error"sv, data);
         return;
     }
-    std::vector<epoll_event> vec_of_events; //empty at start
+    std::vector<epoll_event> vec_of_events(10); //empty at start
     std::unordered_set<int> clients_without_chat;
     epoll_event ev;
     ev.events = EPOLLEXCLUSIVE | EPOLLIN | EPOLLET;
@@ -216,32 +268,45 @@ void list_of_chats(int end_to_read_from) {
                 {"New socket", new_socket}
             };
             logger::Logger::GetInstance().Log("Client entered list_of_chats routine"sv, data);
-            ev.data.fd = new_socket;
-            clients_without_chat.insert(new_socket);
-            vec_of_events.push_back(ev);
-            epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
-            send_available_chats(new_socket);
+            if(send_available_chats(new_socket)){ // if socket did not close while it was written into
+                ev.data.fd = new_socket;
+                clients_without_chat.insert(new_socket);
+                epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
+            }
+            else{
+                boost::json::value data = {
+                    {"New socket", new_socket}
+                };
+                logger::Logger::GetInstance().Log("Could not send available chats"sv, data);
+                std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+                write(disco_pipe[1], &new_socket, sizeof(int));
+            }
         }
         if(bytes < 0 && errno != EAGAIN && errno != EINTR){
             // perror("list of chats pipe error");
-            boost::json::value data = {};
+            boost::json::value data = {
+                {"error", std::error_code{errno, std::generic_category()}.message()}
+            };
             logger::Logger::GetInstance().Log("list of chats pipe error"sv, data);
         }
         int n = epoll_wait(no_chat_epoll_fd, vec_of_events.data(), vec_of_events.size(), 100);
         if (n < 0 && errno != EINVAL && errno != EINTR) {
-            // perror("epoll wait");
-            boost::json::value data = {};
-            logger::Logger::GetInstance().Log("epoll wait error"sv, data);
+            boost::json::value data = {
+                {"error", std::error_code{errno, std::generic_category()}.message()}
+            };
+            logger::Logger::GetInstance().Log("Epoll wait failed list_of_chats"sv, data);
             return;
         } else if (n > 0) {
             for (int i = 0; i < n; ++i) {
                 int client_sockfd = vec_of_events[i].data.fd, err;
-                if (err = read_request_from_client(&received, client_sockfd) > 0) {
+                if ((err = read_request_from_client(&received, client_sockfd)) > 0) {
                     switch(received.request){
                         case c_disconnect:
-                            write(disco_pipe[1], &client_sockfd, sizeof(int));
-                            clients_without_chat.erase(client_sockfd);
+                        c_disconnect_list_chats:
                             epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                            clients_without_chat.erase(client_sockfd);
+                            std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+                            write(disco_pipe[1], &client_sockfd, sizeof(int));
                             break;
                         case c_create_chat:
                             {
@@ -251,17 +316,17 @@ void list_of_chats(int end_to_read_from) {
                             {
                                 resp.responce = s_failure;
                                 resp.message_text = "Chat with such name already exists";
-                                send_resp_to_client(&resp, client_sockfd);
+                                if(!send_resp_to_client(&resp, client_sockfd)) goto c_disconnect_list_chats;
                             }
                             else if (check < 0){
                                 resp.responce = s_failure;
                                 resp.message_text = "Server error: could not create chat, try again later";
-                                // perror("chat creation error");
                                 boost::json::value data = {
-                                    {"chat", received.message_text}
+                                    {"chat", received.message_text},
+                                    {"error", std::error_code{errno, std::generic_category()}.message()},
                                 };
                                 logger::Logger::GetInstance().Log("Chat creation error"sv, data);
-                                send_resp_to_client(&resp, client_sockfd);
+                                if(!send_resp_to_client(&resp, client_sockfd)) goto c_disconnect_list_chats;
                             }
                             else
                             { // if ok -> add the chat to the list of available ones + send list of them
@@ -272,8 +337,19 @@ void list_of_chats(int end_to_read_from) {
                                     {"chat", received.message_text}
                                 };
                                 logger::Logger::GetInstance().Log("Chat created"sv, data);
-                                for (int socket : clients_without_chat)
-                                    send_available_chats(socket);
+                                std::unordered_set<int> closed_sockets;
+                                for (int socket : clients_without_chat){
+                                    if(!send_available_chats(socket)){ // if client disconnects while being written into
+                                        closed_sockets.insert(socket);
+                                    }
+                                }
+                                for(auto socket : closed_sockets){ // handle closed sockets
+                                    epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, socket, &ev);
+                                    clients_without_chat.erase(socket);
+                                    std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+                                    write(disco_pipe[1], &socket, sizeof(int));
+                                }
+
                             }
                             break;
                             }
@@ -295,6 +371,7 @@ void list_of_chats(int end_to_read_from) {
                                 if(pipe(tmp) < 0) {
                                     // perror("could not open pipe to chat");
                                     boost::json::value data = {
+                                        {"error", std::error_code{errno, std::generic_category()}.message()},
                                         {"chat", received.message_text},
                                     };
                                     logger::Logger::GetInstance().Log("Could not open pipe to chat"sv, data);
@@ -313,10 +390,11 @@ void list_of_chats(int end_to_read_from) {
                                 resp.responce = s_success;
                                 resp.message_text = received.message_text;
                                 clients_without_chat.erase(client_sockfd);
-                                send_resp_to_client(&resp, client_sockfd);
-                                // std::cout << "sending fd to " << received.message_text << std::endl;
-                                write(chats[received.message_text].pipe.out, &client_sockfd, sizeof(int));
+                                if(!send_resp_to_client(&resp, client_sockfd)) goto c_disconnect_list_chats;
+                                
                                 epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                                std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+                                write(chats[received.message_text].pipe.out, &client_sockfd, sizeof(int));
                                 boost::json::value data = {
                                     {"chat", received.message_text},
                                     {"socket", client_sockfd}
@@ -326,7 +404,7 @@ void list_of_chats(int end_to_read_from) {
                             else{
                                 resp.responce = s_failure;
                                 resp.message_text = "";
-                                send_resp_to_client(&resp, client_sockfd);
+                                if(!send_resp_to_client(&resp, client_sockfd)) goto c_disconnect_list_chats;
                             }
                             chats[received.message_text].mtx.unlock();
                             break;
@@ -341,12 +419,13 @@ void list_of_chats(int end_to_read_from) {
                             logger::Logger::GetInstance().Log("Wrong request from client"sv, data);
                             resp.responce = s_failure;
                             resp.message_text =  "";
-                            send_resp_to_client(&resp, client_sockfd);
+                            if(!send_resp_to_client(&resp, client_sockfd)) goto c_disconnect_list_chats;
                     }
                 }
                 if (err == 0) {
                     epoll_ctl(no_chat_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
                     clients_without_chat.erase(client_sockfd);
+                    std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
                     write(disco_pipe[1], &client_sockfd, sizeof(int));
                 }
             }
@@ -358,11 +437,13 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
     int no_name_epoll_fd = epoll_create1(0);
     if (no_name_epoll_fd < 0) {
         // perror("epoll create");
-        boost::json::value data = {};
+        boost::json::value data = {
+            {"error", std::error_code{errno, std::generic_category()}.message()}
+        };
         logger::Logger::GetInstance().Log("Username enter epoll create error"sv, data);
         return;
     }
-    std::vector<epoll_event> vec_of_events; //empty at start
+    std::vector<epoll_event> vec_of_events(10); //empty at start
     epoll_event ev;
     ev.events = EPOLLEXCLUSIVE | EPOLLIN | EPOLLET;
     server_data_t resp;
@@ -372,18 +453,22 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
     while(true){
         while((bytes = read(end_to_read_from, &new_socket, sizeof(int))) > 0) {
             ev.data.fd = new_socket;
-            vec_of_events.push_back(ev);
+            // vec_of_events.push_back(ev);
             epoll_ctl(no_name_epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev);
         }
         if(bytes < 0 && errno != EAGAIN){
             // perror("name pipe error");
-            boost::json::value data = {};
+            boost::json::value data = {
+                {"error", std::error_code{errno, std::generic_category()}.message()}
+            };
             logger::Logger::GetInstance().Log("Username enter name pipe error"sv, data);
         }
         int n = epoll_wait(no_name_epoll_fd, vec_of_events.data(), vec_of_events.size(), 100);
         if (n < 0 && errno != EINVAL && errno != EINTR) {
             // perror("epoll wait");
-            boost::json::value data = {};
+            boost::json::value data = {
+                {"error", std::error_code{errno, std::generic_category()}.message()}
+            };
             logger::Logger::GetInstance().Log("Username enter epoll wait error"sv, data);
             return;
         } else if (n > 0) {
@@ -393,8 +478,9 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
                 resp.responce = s_failure;
                 int err = read_request_from_client(&received, client_sockfd);
                 if(received.request == c_disconnect || err == 0){
-                    write(disco_pipe[1], &client_sockfd, sizeof(int));
                     epoll_ctl(no_name_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
+                    std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+                    write(disco_pipe[1], &client_sockfd, sizeof(int));
                     boost::json::value data = {
                         {"socket", client_sockfd}
                     };
@@ -405,17 +491,20 @@ void user_name_enter(int end_to_read_from, int end_to_write_to){
                     user_data[client_sockfd] = received.message_text;
                     used_usernames.insert(received.message_text);
                     resp.responce = s_success;
-                    send_resp_to_client(&resp, client_sockfd);
-                    write(end_to_write_to, &client_sockfd, sizeof(int));
                     epoll_ctl(no_name_epoll_fd, EPOLL_CTL_DEL, client_sockfd, &ev);
-                    // std::cout << "User " << received.message_text << " was registered" << std::endl;
+
+                    if(!send_resp_to_client(&resp, client_sockfd)) write(disco_pipe[1], &client_sockfd, sizeof(int)); // failed to write -> socket is deleted from system
+
+                    std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+                    write(end_to_write_to, &client_sockfd, sizeof(int));
+
                     boost::json::value data = {
                         {"socket", client_sockfd},
                         {"name", received.message_text}
                     };
                     logger::Logger::GetInstance().Log("User registered"sv, data);
                 }
-                else send_resp_to_client(&resp, client_sockfd);
+                else if(!send_resp_to_client(&resp, client_sockfd)) write(disco_pipe[1], &client_sockfd, sizeof(int)); // failed to write -> socket is deleted from system
 
             }
         }
@@ -426,12 +515,20 @@ void disconnect(){
     int read_bytes, fd;
     while (true) {
         while ((read_bytes = read(disco_pipe[0], &fd, sizeof(int))) > 0) {
+            boost::json::value data = {
+                {"socket", fd},
+                {"name", user_data[fd]}
+            };
+            logger::Logger::GetInstance().Log("User was disconnected"sv, data);
             end_resp_to_client(fd);
             used_usernames.erase(user_data[fd]);
             user_data.erase(fd);
         }
         if (read_bytes < 0 && errno != EAGAIN && errno != EINTR) {
-            perror("read disconnected user_fd from pipe");
+            boost::json::value data = {
+                {"error", std::error_code{errno, std::generic_category()}.message()}
+            };
+            logger::Logger::GetInstance().Log("Pipe read error disconnected"sv, data);
         }
     }
 }

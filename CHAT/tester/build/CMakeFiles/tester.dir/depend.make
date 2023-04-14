@@ -4164,6 +4164,7 @@ CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/packa
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/ratio/ratio_fwd.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/rational.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/ref.hpp
+CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/scoped_ptr.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/shared_ptr.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/allocate_shared_array.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/bad_weak_ptr.hpp
@@ -4234,6 +4235,7 @@ CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/packa
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/make_shared.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/make_shared_array.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/make_shared_object.hpp
+CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/scoped_ptr.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/shared_ptr.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/weak_ptr.hpp
 CMakeFiles/tester.dir/main.cpp.o: /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/static_assert.hpp

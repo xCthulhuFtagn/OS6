@@ -78,7 +78,7 @@
     },
     "cmake.debugConfig": {
         "args": [
-            "1"
+            "100"
         ]
     }
 }

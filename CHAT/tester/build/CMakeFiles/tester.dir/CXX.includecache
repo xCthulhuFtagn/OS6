@@ -26424,6 +26424,10 @@ boost/type_traits/is_array.hpp
 boost/core/ref.hpp
 -
 
+/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/scoped_ptr.hpp
+boost/smart_ptr/scoped_ptr.hpp
+-
+
 /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/shared_ptr.hpp
 boost/smart_ptr/shared_ptr.hpp
 -
@@ -27146,6 +27150,26 @@ boost/type_traits/alignment_of.hpp
 cstddef
 -
 new
+-
+
+/home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/scoped_ptr.hpp
+boost/config.hpp
+-
+boost/assert.hpp
+-
+boost/checked_delete.hpp
+-
+boost/smart_ptr/detail/sp_nullptr_t.hpp
+-
+boost/smart_ptr/detail/sp_disable_deprecated.hpp
+-
+boost/smart_ptr/detail/sp_noexcept.hpp
+-
+boost/config/workaround.hpp
+-
+memory
+-
+boost/smart_ptr/detail/operator_bool.hpp
 -
 
 /home/owner/.conan/data/boost/1.78.0/_/_/package/9bb382e9c85821936d59f1c4ea5134768df38de2/include/boost/smart_ptr/shared_ptr.hpp
@@ -29897,6 +29921,8 @@ vector
 -
 boost/array.hpp
 -
+boost/scoped_ptr.hpp
+-
 boost/asio/read.hpp
 -
 boost/asio/write.hpp
@@ -29918,8 +29944,6 @@ boost/asio/detached.hpp
 boost/asio/co_spawn.hpp
 -
 boost/asio/connect.hpp
--
-boost/json.hpp
 -
 logger.h
 /home/owner/Desktop/dev/cpp/programming/OS6/CHAT/tester/logger.h

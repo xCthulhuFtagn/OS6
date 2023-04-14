@@ -5,7 +5,7 @@
 #include <thread>
 
 #include "server.h"
-// #include "request_handler.h"
+#include "logger.h"
 
 using namespace std::literals;
 namespace net = boost::asio;
@@ -30,6 +30,9 @@ void RunThreads(unsigned n, const Fn& fn) {
 
 int main(int argc, const char* argv[]) {
     try {
+
+        LOG_INIT()
+
         // 1. Инициализируем io_context
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
@@ -38,7 +41,10 @@ int main(int argc, const char* argv[]) {
         net::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
             if (!ec) {
-                std::cout << std::endl << "Signal "sv << signal_number << " received"sv << std::endl;
+                boost::json::value data = {
+                    {"signal", signal_number}
+                };
+                logger::Logger::GetInstance().Log("Signal received"sv, data);
                 ioc.stop();
             }
         });
@@ -52,7 +58,11 @@ int main(int argc, const char* argv[]) {
         std::make_shared<server::Server>(ioc,  endpoint, "./chats"s)->Run();
 
         // Эта надпись сообщает тестам о том, что сервер запущен и готов обрабатывать запросы
-        std::cout << "Server has started..."sv << std::endl;
+        boost::json::value data = {
+            {"address", address.to_string()},
+            {"port", port}
+        };
+        logger::Logger::GetInstance().Log("Server started"sv, data);
 
         // 5. Запускаем обработку асинхронных операций
         RunThreads(std::max(1u, num_threads), [&ioc] {
@@ -60,7 +70,10 @@ int main(int argc, const char* argv[]) {
         });
     }
     catch (const std::exception& ex) {
-        std::cerr << ex.what() << std::endl;
+        boost::json::value data = {
+            {"exception", ex.what()}
+        };
+        logger::Logger::GetInstance().Log("Exception occured"sv, data);
         return EXIT_FAILURE;
     }
 }

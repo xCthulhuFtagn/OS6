@@ -4,7 +4,7 @@ project(server_async)
 set(CMAKE_CXX_STANDARD 20)
 
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
+conan_basic_setup(TARGETS)
 
 #set(CMAKE_CXX_FLAGS "-fcoroutines -fconcepts")
 
@@ -20,6 +20,10 @@ find_package(Threads REQUIRED)
 add_executable(async_server 
                     main.cpp 
                     server.cpp 
-                    server.h )
+                    server.h
+                    logger.h
+                    logger.cpp
+                    )
 
-target_link_libraries(async_server PRIVATE Threads::Threads)
+target_include_directories(async_server PRIVATE CONAN_PKG::boost)
+target_link_libraries(async_server PRIVATE Threads::Threads CONAN_PKG::boost)

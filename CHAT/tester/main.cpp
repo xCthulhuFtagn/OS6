@@ -8,6 +8,7 @@
 #include <vector>
 
 #include <boost/array.hpp>
+#include <boost/scoped_ptr.hpp>
 
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
@@ -21,7 +22,7 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/connect.hpp>
 
-#include <boost/json.hpp>
+// #include <boost/json.hpp>
 
 #include "logger.h"
 
@@ -111,9 +112,9 @@ std::string StringifyResponse(server_response_e r){
     }
 }
 
-net::awaitable<void> Write(tcp::socket* socket, client_data_t&& request){
+net::awaitable<void> Write(std::shared_ptr<tcp::socket> socket, client_data_t&& request){
     size_t message_length = request.message_text.size();
-    auto safe_request = request;
+    boost::scoped_ptr<client_data_t> safe_request(new client_data_t(request));
 
     // std::cout << "Sending message: {request: " << response.request 
     // << ", response: " << response.response << ", message: \"" << response.message_text << "\"}" << std::endl;
@@ -121,9 +122,9 @@ net::awaitable<void> Write(tcp::socket* socket, client_data_t&& request){
     auto [ec, bytes] = co_await net::async_write(
         *socket, 
         boost::array<boost::asio::mutable_buffer, 4>({
-            net::buffer((void*)&safe_request.request, sizeof(client_request_e)),
+            net::buffer((void*)&safe_request->request, sizeof(client_request_e)),
             net::buffer((void*)&message_length, sizeof(size_t)),
-            net::buffer(safe_request.message_text)
+            net::buffer(safe_request->message_text)
         }),
         // boost::asio::transfer_all(), // maybe needed
         net::experimental::as_tuple(net::use_awaitable)
@@ -149,7 +150,7 @@ net::awaitable<void> Write(tcp::socket* socket, client_data_t&& request){
     logger::Logger::GetInstance().Log("Wrote request to server"sv, data);
 }
 
-net::awaitable<server_data_t> Read(tcp::socket* socket){
+net::awaitable<server_data_t> Read(std::shared_ptr<tcp::socket> socket){
     server_data_t response;
     size_t message_length;
 
@@ -214,9 +215,9 @@ std::vector<std::string> SplitString(std::string str, const std::string& delimit
 }
 
 
-boost::asio::awaitable<void> User(tcp::socket socket){
+boost::asio::awaitable<void> User(tcp::socket socket_){
     try{
-        // tcp::socket socket(std::move(socket_));
+       std::shared_ptr<tcp::socket> socket = std::make_shared<tcp::socket>(std::move(socket_));
 
         client_data_t request;
         server_data_t response;
@@ -236,8 +237,8 @@ boost::asio::awaitable<void> User(tcp::socket socket){
             request.message_text = ss.str();
             request.request = c_set_name;
 
-            co_await Write(&socket, std::move(request));
-            response = co_await Read(&socket);
+            co_await Write(socket, std::move(request));
+            response = co_await Read(socket);
         }while(response.response == s_failure);
 
         while(true){ //loop to switch between being in and out of chat
@@ -245,22 +246,22 @@ boost::asio::awaitable<void> User(tcp::socket socket){
             //list of chats
             //getting rid of extra messages
             do{
-                response = co_await Read(&socket); // receiving list of chats
+                response = co_await Read(socket); // receiving list of chats
             }while(response.request != c_get_chats); // other messages are just ignored
             //split here
             auto chats = SplitString(response.message_text, "\n"s);
 
             while(true){ // list of chat loop
-                if(chats.empty() || generator() % 100 < 10){ 
+                if(chats.size() < 4 || generator() % 100 < 2){ 
                     // 10% possibility to create chat & if no chats -> it will be created by default
                     request.request = c_create_chat;
                     // generating random chat name
                     std::stringstream ss;
                     ss  << "Chat" << std::setw(8) << std::setfill('0') << std::hex << generator();
                     request.message_text = ss.str();
-                    co_await Write(&socket, std::move(request));
+                    co_await Write(socket, std::move(request));
                     while(true){
-                        response = co_await Read(&socket);
+                        response = co_await Read(socket);
                         if(response.request == c_get_chats) {
                             chats = SplitString(response.message_text, "\n"s);
                             break;
@@ -270,9 +271,9 @@ boost::asio::awaitable<void> User(tcp::socket socket){
                 else{ // connect to chat
                     request.request = c_connect_chat;
                     request.message_text = *select_randomly(chats.begin(), chats.end());
-                    co_await Write(&socket, std::move(request));
+                    co_await Write(socket, std::move(request));
                     while(true){
-                        response = co_await Read(&socket);
+                        response = co_await Read(socket);
                         if(response.request == c_get_chats) chats = SplitString(response.message_text, "\n"s);
                         else break;
                     }
@@ -284,15 +285,15 @@ boost::asio::awaitable<void> User(tcp::socket socket){
 
             while(true){ // chat loop
             //getting rid of extra messages
-                while(socket.available() > 0){
-                    response = co_await Read(&socket);
+                while(socket->available() > 0){
+                    response = co_await Read(socket);
                     if(response.request != c_get_chats && response.request != c_receive_message) break;
                 }
                 auto i = generator();
                 if(i % 100 < 5){ // 5% probability that user leaves chat
                     request.message_text.clear();
                     request.request = c_leave_chat;
-                    co_await Write(&socket, std::move(request));
+                    co_await Write(socket, std::move(request));
                     break;
                 }
                 else{
@@ -301,7 +302,7 @@ boost::asio::awaitable<void> User(tcp::socket socket){
                     ss << std::setw(16) << std::setfill('0') << std::hex << generator() << generator();
                     request.message_text = ss.str();
                     request.request = c_send_message;
-                    co_await Write(&socket, std::move(request));
+                    co_await Write(socket, std::move(request));
                 }
             }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

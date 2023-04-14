@@ -87,16 +87,20 @@ int read_request_from_client(client_data_t* received, int sockfd){
     return length + 1;
 }
 
-void send_resp_to_client(const server_data_t* resp, int sockfd){
+bool send_resp_to_client(const server_data_t* resp, int sockfd){
     #if DEBUG_TRACE
         printf("%d : - send_resp_to_client()\n", getpid());
     #endif
     int written_bytes;
-    written_bytes = send(sockfd, (void*)(&resp->request), sizeof(client_request_e), MSG_WAITALL);
-    written_bytes = send(sockfd, (void*)(&resp->responce), sizeof(server_response_e), MSG_WAITALL);
+    written_bytes = send(sockfd, (void*)(&resp->request), sizeof(client_request_e), MSG_WAITALL | MSG_NOSIGNAL);
+    if(written_bytes < 0) return false;
+    written_bytes = send(sockfd, (void*)(&resp->responce), sizeof(server_response_e), MSG_WAITALL | MSG_NOSIGNAL);
+    if(written_bytes < 0) return false;
     size_t length = resp->message_text.size();
-    written_bytes = send(sockfd, (void*)(&length), sizeof(size_t), MSG_WAITALL);
-    written_bytes = send(sockfd, (void*)(resp->message_text.c_str()), resp->message_text.size(), MSG_WAITALL);
+    written_bytes = send(sockfd, (void*)(&length), sizeof(size_t), MSG_WAITALL | MSG_NOSIGNAL);
+    if(written_bytes < 0) return false;
+    written_bytes = send(sockfd, (void*)(resp->message_text.c_str()), resp->message_text.size(), MSG_WAITALL | MSG_NOSIGNAL);
+    if(written_bytes < 0) return false;
 
     boost::json::value data = {
         {"response", 
@@ -108,6 +112,8 @@ void send_resp_to_client(const server_data_t* resp, int sockfd){
         }
     };
     logger::Logger::GetInstance().Log("Sent response to client"sv, data);
+
+    return true;
 }
 
 void end_resp_to_client(int sockfd){
@@ -122,12 +128,12 @@ void end_resp_to_client(int sockfd){
     //perror("Could not close clients socket");
 }
 
-void send_available_chats(int sockfd){
+bool send_available_chats(int sockfd){
     server_data_t resp;
     resp.request = c_get_chats;
     resp.responce = s_success;
     for (auto it = chats.begin(); it != chats.end(); ++it){
         resp.message_text += it->first + "\n";
     }
-    send_resp_to_client(&resp, sockfd);
+    return send_resp_to_client(&resp, sockfd);
 }
