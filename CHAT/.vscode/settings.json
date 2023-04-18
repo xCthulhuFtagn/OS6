@@ -59,7 +59,8 @@
         "iomanip": "cpp",
         "numbers": "cpp",
         "sstream": "cpp",
-        "semaphore": "cpp"
+        "semaphore": "cpp",
+        "coroutine": "cpp"
     },
     "cmake.sourceDirectory": "${workspaceFolder}/ASYNC_SERVER_PART"
 }

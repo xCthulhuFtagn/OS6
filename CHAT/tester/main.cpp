@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <random>
 #include <vector>
+#include <chrono>
 
 #include <boost/array.hpp>
 #include <boost/scoped_ptr.hpp>
@@ -203,6 +204,61 @@ net::awaitable<server_data_t> Read(std::shared_ptr<tcp::socket> socket){
         co_return response;
 }
 
+net::awaitable<server_data_t> Read(std::shared_ptr<tcp::socket> socket, std::chrono::system_clock::time_point start_ts){
+    server_data_t response;
+    size_t message_length;
+
+    auto [ec, bytes] = co_await 
+        boost::asio::async_read(
+            *socket, 
+            boost::array<boost::asio::mutable_buffer, 3>({
+            net::buffer((void*)&response.request, sizeof(client_request_e)),
+            net::buffer((void*)&response.response, sizeof(server_response_e)),
+            net::buffer((void*)&message_length, sizeof(size_t)),
+            }),
+            // boost::asio::transfer_all(), // maybe needed
+            boost::asio::experimental::as_tuple(boost::asio::use_awaitable)
+        );
+        if (!ec) {
+            response.message_text.resize(message_length);
+            auto [ec2, bytes2] = co_await boost::asio::async_read(
+                *socket, 
+                boost::asio::buffer(response.message_text),
+                // boost::asio::transfer_all(), // maybe needed
+                boost::asio::experimental::as_tuple(boost::asio::use_awaitable)
+            );
+            if(ec2) {
+                //log here
+                boost::json::value data = {
+                    {"error", ec.what()}
+                };
+                logger::Logger::GetInstance().Log("Client read error"sv, data);
+                throw ec2;
+            }
+        }
+        else {
+            //log here 
+            boost::json::value data = {
+                {"error", ec.what()}
+            };
+            logger::Logger::GetInstance().Log("Client read error"sv, data);
+            throw ec;
+        }
+        std::chrono::system_clock::time_point end_ts = std::chrono::system_clock::now();
+        boost::json::value data = {
+            {"response", 
+                    {   
+                        {"client_request_e", StringifyRequest(response.request)},
+                        {"server_response_e", StringifyResponse(response.response)},
+                        {"message", response.message_text}
+                    }
+            },
+            {"response time", (end_ts - start_ts).count()}
+        };
+        logger::Logger::GetInstance().Log("Read first response from server"sv, data);
+        co_return response;
+}
+
 std::vector<std::string> SplitString(std::string str, const std::string& delimiter){
 
     size_t pos;
@@ -252,8 +308,8 @@ boost::asio::awaitable<void> User(tcp::socket socket_){
             auto chats = SplitString(response.message_text, "\n"s);
 
             while(true){ // list of chat loop
-                if(chats.size() < 4 || generator() % 100 < 2){ 
-                    // 10% possibility to create chat & if no chats -> it will be created by default
+                if(chats.size() < 4 || generator() % 1000 < 2){ 
+                    // 0.2% possibility to create chat & if no chats -> it will be created by default
                     request.request = c_create_chat;
                     // generating random chat name
                     std::stringstream ss;
@@ -329,7 +385,7 @@ boost::asio::awaitable<void> User(tcp::socket socket_){
 
 int main(int argc, const char* argv[]) {
     if(argc != 2){
-        std::cout << "The only one correct parameter - number of user (currently " << argc - 1 << "arguments used)" << std::endl;
+        // std::cout << "The only one correct parameter - number of user (currently " << argc - 1 << "arguments used)" << std::endl;
         return EXIT_FAILURE;
     }
     int N = std::stoi(argv[1]);
@@ -345,7 +401,7 @@ int main(int argc, const char* argv[]) {
         net::signal_set signals(ioc, SIGINT, SIGTERM);
         signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
             if (!ec) {
-                std::cout << std::endl << "Signal "sv << signal_number << " received"sv << std::endl;
+                // std::cout << std::endl << "Signal "sv << signal_number << " received"sv << std::endl;
                 ioc.stop();
             }
         });

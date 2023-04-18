@@ -94,18 +94,6 @@ struct User{
     std::string chat_name;
 };
 
-// class my_error: public std::exception
-// {
-// public:
-//     my_error(const std::string& message): message{message}{}
-//     const char* what() const noexcept override
-//     {
-//         return message.c_str();     // получаем из std::string строку const char*
-//     }
-// private:
-//     std::string message;    // сообщение об ошибке
-// };
-
 class Chat{
 public:
     Chat(net::io_context& io, const std::filesystem::path& chat_path) : strand(net::make_strand(io)), path(chat_path){ 
