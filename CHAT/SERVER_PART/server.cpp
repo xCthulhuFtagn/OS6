@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     bzero(&address, sizeof(address));
     address.sin_port = htons(5000);
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr("127.0.0.1");
+    address.sin_addr.s_addr = inet_addr("0.0.0.0");
     /* 
      * The call to the function "bind()" assigns the details specified
      * in the structure address to the socket created in the step above

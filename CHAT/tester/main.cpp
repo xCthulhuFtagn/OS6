@@ -385,7 +385,7 @@ boost::asio::awaitable<void> User(tcp::socket socket_){
 
 int main(int argc, const char* argv[]) {
     if(argc != 2){
-        // std::cout << "The only one correct parameter - number of user (currently " << argc - 1 << "arguments used)" << std::endl;
+        std::cout << "The only one correct parameter - number of user (currently " << argc - 1 << "arguments used)" << std::endl;
         return EXIT_FAILURE;
     }
     int N = std::stoi(argv[1]);
