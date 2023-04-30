@@ -15,7 +15,7 @@ wrong_lines = prom.Counter('webexporter_wrong_lines', 'Wrong JSON records')
 read_errors = prom.Counter('client_read_errors', 'Client read errors')
 
 response_time = prom.Histogram('webserver_request_duration', 'Response time', labelnames=['client_request_e', 'server_response_e'],
-    buckets=(.500, 1.0, 1.5, 2.0, 2.5, 3.0, float("inf")))
+    buckets=(.001, .002, .005, .010, .020, .050, .100, .200, .500, float("inf")))
 
 # Определим функцию, которую мы будем использовать как main:
 def my_main():
@@ -31,9 +31,11 @@ def my_main():
                 raise ValueError()
 
             # Регистрирум запрос
-            if data["message"] == "Read first response from server":
-                total_time_seconds = data["data"]["response time"] / 1000
+            if data["message"] == "Read first response from server" or data["message"] == "Wrote first response":
+                # изменим в скрипте деление на большее 1000 число, чтобы адекватно сравнивать задержку
+                total_time_seconds = data["data"]["response time"] / 100000000
                 response_time.labels(client_request_e=data["data"]["response"]["client_request_e"], server_response_e=data["data"]["response"]["server_response_e"]).observe(total_time_seconds)
+                # print("Response_time = ", total_time_seconds)
 
             if data["message"] == "Client read error":
                 read_errors.inc()

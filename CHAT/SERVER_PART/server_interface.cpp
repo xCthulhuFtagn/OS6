@@ -59,9 +59,6 @@ std::string StringifyResponse(server_response_e r){
 int read_request_from_client(client_data_t* received, int sockfd){
     size_t length;
     int err;
-    // #if DEBUG_TRACE
-    //     printf("%D :- read_request_from_client()\n", getpid());
-    // #endif
     
     err = recv(sockfd, (void*)(&(received->request)), sizeof(client_request_e), MSG_WAITALL);
     if (err != sizeof(client_request_e))
@@ -82,15 +79,13 @@ int read_request_from_client(client_data_t* received, int sockfd){
             }
         }
     };
-    logger::Logger::GetInstance().Log("Read request from client"sv, data);
+    // logger::Logger::GetInstance().Log("Read request from client"sv, data);
 
     return length + 1;
 }
 
 bool send_resp_to_client(const server_data_t* resp, int sockfd){
-    #if DEBUG_TRACE
-        printf("%d : - send_resp_to_client()\n", getpid());
-    #endif
+
     int written_bytes;
     written_bytes = send(sockfd, (void*)(&resp->request), sizeof(client_request_e), MSG_WAITALL | MSG_NOSIGNAL);
     if(written_bytes < 0) return false;
@@ -111,7 +106,7 @@ bool send_resp_to_client(const server_data_t* resp, int sockfd){
             }
         }
     };
-    logger::Logger::GetInstance().Log("Sent response to client"sv, data);
+    // logger::Logger::GetInstance().Log("Sent response to client"sv, data);
 
     return true;
 }
@@ -123,7 +118,7 @@ void end_resp_to_client(int sockfd){
 
     if(close(sockfd) < 0){
         boost::json::value data = {};
-        logger::Logger::GetInstance().Log("Sent response to client"sv, data);
+        // logger::Logger::GetInstance().Log("Ended response to client"sv, data);
     }
     //perror("Could not close clients socket");
 }
