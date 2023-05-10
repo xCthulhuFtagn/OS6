@@ -17,7 +17,11 @@ RUN mkdir /app/build && cd /app/build && \
     conan install .. -s compiler.libcxx=libstdc++11 -s build_type=Debug --build=missing
 
 # Только после этого копируем остальные иходники
-COPY logger.h logger.cpp main.cpp CMakeLists.txt /app/
+COPY    main.cpp \
+        logger.h logger.cpp \
+        server.h server.cpp \
+        CMakeLists.txt \
+    /app/
 
 RUN cd /app/build && \
     cmake .. -DCMAKE_BUILD_TYPE=Debug && \
@@ -26,15 +30,12 @@ RUN cd /app/build && \
 # Второй контейнер в том же докерфайле
 FROM ubuntu:22.04 as run
 
-# Создадим пользователя usr
-RUN groupadd -r usr && useradd -r -g usr usr
-USER usr
+# # Создадим пользователя usr
+# RUN groupadd -r usr && useradd -r -g usr usr
+# USER usr
 
 # Скопируем приложение со сборочного контейнера в директорию /app.
-COPY --from=build /app/build/bin/tester /app/
-
-# # Даем к локалхосту доступ
-# RUN --network=host
+COPY --from=build /app/build/bin/server /app/
 
 # Запускаем тестировщик
-ENTRYPOINT ["/app/tester", "10"]
+ENTRYPOINT ["/app/server_async"]
